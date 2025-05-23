@@ -48,12 +48,15 @@ ENV/
 ._*
 
 # Project specific
-uploads/*.pdf
-data/transactions.json
-data/backups/
+uploads/*
+data/*
 tests/test_results/
 pipeline_test_results.json
 .pytest_cache/
 
-# Allow example PDF for tests
+# Exceptions - Files we want to keep in Git
+!uploads/.gitkeep
 !uploads/Statement_Example.pdf
+!data/.gitkeep
+!data/account_config.json
+!data/categories.json
