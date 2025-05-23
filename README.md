@@ -1,6 +1,6 @@
-# Expense Tracker
+# Personal Finance Dashboard
 
-A personal finance application for automatically parsing bank statements, categorizing transactions, and analyzing spending patterns.
+A comprehensive dashboard for tracking your finances, automatically parsing bank statements, categorizing transactions, and analyzing spending patterns.
 
 ## Overview
 
@@ -34,8 +34,8 @@ Currently supported bank statement formats:
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/expense-tracker.git
-   cd expense-tracker
+   git clone https://github.com/YOUR_USERNAME/personal-finance-dashboard.git
+   cd personal-finance-dashboard
    ```
 
 2. Create a virtual environment and activate it:

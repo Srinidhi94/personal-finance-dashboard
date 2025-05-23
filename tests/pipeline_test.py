@@ -100,7 +100,7 @@ def simple_categorize_subcategory(description, category):
 def main():
     """Main function to run the pipeline test."""
     # Set up command line arguments
-    parser = argparse.ArgumentParser(description='Test the expense tracker parsing and categorization pipeline')
+    parser = argparse.ArgumentParser(description='Test the personal finance dashboard parsing and categorization pipeline')
     parser.add_argument('--pdf-path', type=str, default='uploads/Statement_Example.pdf',
                       help='Path to the PDF statement to parse')
     parser.add_argument('--output-dir', type=str, default='tests/test_results',

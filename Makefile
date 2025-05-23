@@ -14,17 +14,17 @@ BACKUP_DIR = data/backups
 
 # Run the web server
 run:
-	@echo "Starting the expense tracker server on port $(PORT)..."
+	@echo "Starting the personal finance dashboard server on port $(PORT)..."
 	python app.py --port $(PORT)
 
 # Run the server in debug mode
 debug:
-	@echo "Starting the expense tracker server in debug mode on port $(PORT)..."
+	@echo "Starting the personal finance dashboard server in debug mode on port $(PORT)..."
 	FLASK_ENV=development FLASK_DEBUG=1 python app.py --port $(PORT)
 
 # Stop the server (if running as a background process)
 stop:
-	@echo "Stopping the expense tracker server..."
+	@echo "Stopping the personal finance dashboard server..."
 	-pkill -f "python app.py" || true
 
 # Clean up temporary and cache files

@@ -1,6 +1,6 @@
-# Contributing to Expense Tracker
+# Contributing to Personal Finance Dashboard
 
-Thank you for considering contributing to Expense Tracker! This document outlines the process for contributing to this project.
+Thank you for considering contributing to Personal Finance Dashboard! This document outlines the process for contributing to this project.
 
 ## Code of Conduct
 
@@ -57,7 +57,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ## Adding Support for New Banks
 
-The expense tracker is designed to be extensible. To add support for a new bank:
+The dashboard is designed to be extensible. To add support for a new bank:
 
 1. Create a new parser module in the `parsers/` directory
 2. Implement the extraction function following the pattern in other parsers
