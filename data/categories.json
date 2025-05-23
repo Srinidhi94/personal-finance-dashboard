@@ -1,0 +1,227 @@
+{
+  "Income": {
+    "keywords": [
+      "salary",
+      "interest",
+      "dividend",
+      "bonus",
+      "gift"
+    ],
+    "subcategories": {
+      "Salary": [
+        "salary",
+        "payroll",
+        "pay"
+      ],
+      "Investment Income": [
+        "interest",
+        "dividend",
+        "capital gain"
+      ],
+      "Gifts": [
+        "gift",
+        "present"
+      ],
+      "Other Income": [
+        "bonus",
+        "refund",
+        "cashback"
+      ]
+    }
+  },
+  "Food": {
+    "keywords": [
+      "grocery",
+      "restaurant",
+      "cafe",
+      "food delivery",
+      "groceries"
+    ],
+    "subcategories": {
+      "Groceries": [
+        "grocery",
+        "groceries",
+        "supermarket"
+      ],
+      "Restaurants": [
+        "restaurant",
+        "dining",
+        "lunch",
+        "dinner"
+      ],
+      "Food Delivery": [
+        "delivery",
+        "zomato",
+        "swiggy",
+        "doordash",
+        "uber eats"
+      ],
+      "Coffee & Snacks": [
+        "cafe",
+        "coffee",
+        "bakery",
+        "snacks"
+      ]
+    }
+  },
+  "Transportation": {
+    "keywords": [
+      "fuel",
+      "gas",
+      "parking",
+      "public transport",
+      "car service",
+      "uber",
+      "lyft"
+    ],
+    "subcategories": {
+      "Fuel": [
+        "fuel",
+        "gas",
+        "petrol",
+        "diesel"
+      ],
+      "Public Transit": [
+        "bus",
+        "train",
+        "metro",
+        "subway",
+        "public transport"
+      ],
+      "Taxi/Rideshare": [
+        "uber",
+        "lyft",
+        "ola",
+        "taxi",
+        "cab"
+      ],
+      "Parking": [
+        "parking"
+      ],
+      "Car Service": [
+        "service",
+        "repair",
+        "maintenance"
+      ]
+    }
+  },
+  "Shopping": {
+    "keywords": [
+      "clothing",
+      "electronics",
+      "furniture",
+      "amazon",
+      "online shopping"
+    ],
+    "subcategories": {
+      "Clothing": [
+        "clothing",
+        "apparel",
+        "fashion",
+        "dress",
+        "shirt",
+        "shoes"
+      ],
+      "Electronics": [
+        "electronics",
+        "gadget",
+        "phone",
+        "laptop",
+        "computer"
+      ],
+      "Home Goods": [
+        "furniture",
+        "decor",
+        "appliance"
+      ],
+      "Online Shopping": [
+        "amazon",
+        "flipkart",
+        "myntra",
+        "online"
+      ]
+    }
+  },
+  "Utilities": {
+    "keywords": [
+      "electricity",
+      "water",
+      "gas",
+      "internet",
+      "phone",
+      "mobile"
+    ],
+    "subcategories": {
+      "Electricity": [
+        "electricity",
+        "power",
+        "light"
+      ],
+      "Water": [
+        "water"
+      ],
+      "Gas": [
+        "gas"
+      ],
+      "Internet": [
+        "internet",
+        "broadband",
+        "wifi"
+      ],
+      "Mobile": [
+        "mobile",
+        "phone",
+        "cell"
+      ]
+    }
+  },
+  "Rent": {
+    "keywords": [
+      "rent",
+      "lease",
+      "housing",
+      "apartment"
+    ],
+    "subcategories": {}
+  },
+  "Entertainment": {
+    "keywords": [
+      "movies",
+      "concert",
+      "subscription",
+      "netflix",
+      "amazon prime"
+    ],
+    "subcategories": {
+      "Streaming": [
+        "netflix",
+        "amazon prime",
+        "hotstar",
+        "hulu",
+        "disney+"
+      ],
+      "Movies": [
+        "movie",
+        "cinema",
+        "theatre"
+      ],
+      "Music": [
+        "concert",
+        "spotify",
+        "music"
+      ],
+      "Other": [
+        "entertainment",
+        "subscription"
+      ]
+    }
+  },
+  "Miscellaneous": {
+    "keywords": [
+      "other",
+      "misc",
+      "unknown"
+    ],
+    "subcategories": {}
+  }
+}

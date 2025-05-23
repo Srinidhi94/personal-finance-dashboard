@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Smart Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Dashboard</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+        <i class="bi bi-upload me-2"></i> Upload Statement
+    </button>
+</div>
+
+<!-- Summary Stats Row -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card bg-white">
+            <div class="stat-title">Total Transactions</div>
+            <div class="stat-value">{{ summary.total_transactions }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-white">
+            <div class="stat-title">Total Income</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.total_income) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-white">
+            <div class="stat-title">Total Expenses</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.total_expenses) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-white">
+            <div class="stat-title">Net Balance</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.net_balance) }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Statement Modal (Basic Version) -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Bank Statement</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form action="/upload" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="bank" class="form-label">Bank</label>
+                        <select class="form-select" id="bank" name="bank">
+                            <option value="HDFC">HDFC Bank</option>
+                            <option value="AMEX">American Express</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="account_type" class="form-label">Account Type</label>
+                        <select class="form-select" id="account_type" name="account_type">
+                            <option value="savings">Savings Account</option>
+                            <option value="credit_card">Credit Card</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Statement File</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.csv,.txt">
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

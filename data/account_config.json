@@ -1,0 +1,16 @@
+{
+  "accounts": [
+    {
+      "bank": "HDFC",
+      "account_type": "credit_card",
+      "account_name": "HDFC Credit Card",
+      "parser": "hdfc_credit_card"
+    },
+    {
+      "bank": "HDFC",
+      "account_type": "savings",
+      "account_name": "HDFC Savings Account",
+      "parser": "hdfc_savings"
+    }
+  ]
+}

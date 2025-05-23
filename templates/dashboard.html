@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - Smart Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Analytics Dashboard</h2>
+    <div class="btn-group">
+        <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-calendar-range me-2"></i> Time Period
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#">Last Month</a></li>
+            <li><a class="dropdown-item" href="#">Last 3 Months</a></li>
+            <li><a class="dropdown-item" href="#">Last 6 Months</a></li>
+            <li><a class="dropdown-item" href="#">This Year</a></li>
+            <li><a class="dropdown-item" href="#">All Time</a></li>
+        </ul>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Summary Stats -->
+    <div class="col-md-3">
+        <div class="stat-card bg-white">
+            <div class="stat-title">Total Income</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.total_income) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-white">
+            <div class="stat-title">Total Expenses</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.total_expenses) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-white">
+            <div class="stat-title">Net Balance</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.net_balance) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-white">
+            <div class="stat-title">Accounts</div>
+            <div class="stat-value">{{ summary.account_summary|length }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Monthly Income vs Expenses</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Category Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="categoryPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Right Column -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Top Categories</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Amount</th>
+                                <th>% of Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in summary.category_summary[:5] %}
+                            <tr>
+                                <td>{{ category.name }}</td>
+                                <td>₹{{ "{:,.2f}".format(category.total) }}</td>
+                                <td>
+                                    {% set percentage = (category.total / summary.total_expenses * 100) if summary.total_expenses > 0 else 0 %}
+                                    {{ "{:.1f}%".format(percentage) }}
+                                    <div class="progress mt-1" style="height: 4px;">
+                                        <div class="progress-bar" style="width: {{ percentage }}%"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Account Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="accountBarChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Initialize charts
+    document.addEventListener('DOMContentLoaded', function() {
+        // Monthly Chart
+        fetch('/api/charts/monthly_trends')
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error fetching monthly data:', error);
+                return { labels: [], datasets: [] };
+            })
+            .then(data => {
+                try {
+                    const ctx = document.getElementById('monthlyChart').getContext('2d');
+                    
+                    // If we don't have real data yet, create some placeholder data
+                    if (!data.labels || data.labels.length === 0) {
+                        data = {
+                            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+                            datasets: [
+                                {
+                                    label: 'Income',
+                                    data: [0, 0, 0, 0, 0],
+                                    backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                                },
+                                {
+                                    label: 'Expenses',
+                                    data: [0, 0, 0, 0, 0],
+                                    backgroundColor: 'rgba(255, 99, 132, 0.6)'
+                                }
+                            ]
+                        };
+                    }
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: data,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '₹' + value.toLocaleString('en-IN');
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error creating monthly chart:', e);
+                }
+            });
+        
+        // Category Pie Chart
+        fetch('/api/charts/category_distribution')
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error fetching category data:', error);
+                return { labels: [], datasets: [{ data: [] }] };
+            })
+            .then(data => {
+                try {
+                    const ctx = document.getElementById('categoryPieChart').getContext('2d');
+                    
+                    // If we don't have real data yet, create some placeholder data
+                    if (!data.labels || data.labels.length === 0) {
+                        data = {
+                            labels: ['No Data'],
+                            datasets: [{
+                                data: [1],
+                                backgroundColor: ['#e0e0e0']
+                            }]
+                        };
+                    }
+                    
+                    new Chart(ctx, {
+                        type: 'pie',
+                        data: data,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right'
+                                }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error creating category chart:', e);
+                }
+            });
+        
+        // Account Bar Chart
+        fetch('/api/charts/account_distribution')
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error fetching account data:', error);
+                return { labels: [], datasets: [] };
+            })
+            .then(data => {
+                try {
+                    const ctx = document.getElementById('accountBarChart').getContext('2d');
+                    
+                    // If we don't have real data yet, create some placeholder data
+                    if (!data.labels || data.labels.length === 0) {
+                        data = {
+                            labels: ['No Data'],
+                            datasets: [
+                                {
+                                    label: 'Income',
+                                    data: [0],
+                                    backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                                },
+                                {
+                                    label: 'Expenses',
+                                    data: [0],
+                                    backgroundColor: 'rgba(255, 99, 132, 0.6)'
+                                }
+                            ]
+                        };
+                    }
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: data,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '₹' + value.toLocaleString('en-IN');
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error creating account chart:', e);
+                }
+            });
+    });
+</script>
+{% endblock %}

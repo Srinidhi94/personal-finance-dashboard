@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions - Smart Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Transactions</h2>
+    <div>
+        <button class="btn btn-outline-primary me-2" id="export-btn">
+            <i class="bi bi-download me-2"></i> Export
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-upload me-2"></i> Upload Statement
+        </button>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form id="filter-form" class="row g-3">
+            <div class="col-md-3">
+                <label for="filter-category" class="form-label">Category</label>
+                <select class="form-select" id="filter-category" name="category">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category }}">{{ category }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filter-account" class="form-label">Account</label>
+                <select class="form-select" id="filter-account" name="account">
+                    <option value="">All Accounts</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.account_name }}">{{ account.account_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="filter-date-from" class="form-label">From Date</label>
+                <input type="date" class="form-control" id="filter-date-from" name="date_from">
+            </div>
+            <div class="col-md-2">
+                <label for="filter-date-to" class="form-label">To Date</label>
+                <input type="date" class="form-control" id="filter-date-to" name="date_to">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-filter me-2"></i> Apply Filters
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Edit Card (Hidden by default) -->
+<div class="card mb-4" id="bulk-edit-card" style="display: none;">
+    <div class="card-header">
+        <h5 class="mb-0">Bulk Edit Categories</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <label for="bulk-category" class="form-label">New Category</label>
+                <select class="form-select" id="bulk-category">
+                    {% for category in categories %}
+                    <option value="{{ category }}">{{ category }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="button" class="btn btn-primary me-2" id="apply-bulk-edit">
+                    Apply to Selected
+                </button>
+                <button type="button" class="btn btn-secondary" id="cancel-bulk-edit">
+                    Cancel
+                </button>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <span class="text-muted" id="selected-count">0 transactions selected</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transactions Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Transactions</h5>
+        <div>
+            <button class="btn btn-sm btn-outline-primary me-2" id="bulk-edit-btn">
+                <i class="bi bi-pencil-square me-1"></i> Bulk Edit
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="select-all-btn">
+                <i class="bi bi-check-all me-1"></i> Select All
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="transactions-table">
+                <thead>
+                    <tr>
+                        <th width="40">
+                            <input type="checkbox" id="select-all-checkbox" style="display: none;">
+                        </th>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Reference</th>
+                        <th>Category</th>
+                        <th>Account</th>
+                        <th>Amount</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in transactions %}
+                    <tr data-id="{{ loop.index0 }}">
+                        <td>
+                            <input type="checkbox" class="transaction-checkbox" value="{{ loop.index0 }}" style="display: none;">
+                        </td>
+                        <td>{{ transaction.date }}</td>
+                        <td>
+                            <div style="max-width: 300px; word-wrap: break-word;" class="description-display">
+                                {{ transaction.description if transaction.description else 'No description' }}
+                            </div>
+                            <div style="display: none;" class="description-edit">
+                                <input type="text" class="form-control form-control-sm" value="{{ transaction.description }}" />
+                            </div>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ transaction.reference if transaction.reference else '' }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark category-display">{{ transaction.category }}</span>
+                            <select class="form-select form-select-sm category-edit" style="display: none;">
+                                {% for category in categories %}
+                                <option value="{{ category }}" {% if category == transaction.category %}selected{% endif %}>{{ category }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <span class="badge text-bg-{% if transaction.account_type == 'credit_card' %}danger{% else %}success{% endif %}">
+                                {{ transaction.account_name }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="{% if transaction.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                                {% if transaction.amount > 0 %}
+                                    ₹{{ "{:,.2f}".format(transaction.amount) }}
+                                {% else %}
+                                    -₹{{ "{:,.2f}".format(transaction.amount|abs) }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary edit-btn" data-id="{{ loop.index0 }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-success save-btn" data-id="{{ loop.index0 }}" style="display: none;">
+                                <i class="bi bi-check"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary cancel-btn" data-id="{{ loop.index0 }}" style="display: none;">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Export Transactions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="export-form">
+                    <div class="mb-3">
+                        <label for="export-format" class="form-label">Format</label>
+                        <select class="form-select" id="export-format" name="format">
+                            <option value="excel">Excel (.xlsx)</option>
+                            <option value="csv">CSV</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-export">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Bank Statement</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i> Upload PDF statements from your bank. The system will automatically process and categorize transactions.
+                </div>
+
+                <form action="/upload" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="bank" class="form-label">Bank</label>
+                        <select class="form-select" id="bank" name="bank" onchange="updateAccountTypeOptions()">
+                            <option value="">Select Bank</option>
+                            <option value="HDFC">HDFC Bank</option>
+                            <option value="AMEX">American Express</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="account_type" class="form-label">Account Type</label>
+                        <select class="form-select" id="account_type" name="account_type" onchange="updateAccountNameOptions()">
+                            <option value="">Select Account Type</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="account_name" class="form-label">Account Name</label>
+                        <select class="form-select" id="account_name" name="account_name">
+                            <option value="">Select Account</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Statement File</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.csv,.txt">
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-cloud-upload me-2"></i> Upload and Process
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Handle edit transaction
+    const editButtons = document.querySelectorAll('.edit-btn');
+    const saveButtons = document.querySelectorAll('.save-btn');
+    const cancelButtons = document.querySelectorAll('.cancel-btn');
+    
+    editButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const row = document.querySelector(`tr[data-id="${id}"]`);
+            
+            // Hide display elements, show edit elements
+            row.querySelector('.category-display').style.display = 'none';
+            row.querySelector('.category-edit').style.display = 'block';
+            row.querySelector('.description-display').style.display = 'none';
+            row.querySelector('.description-edit').style.display = 'block';
+            
+            // Hide edit button, show save and cancel buttons
+            this.style.display = 'none';
+            row.querySelector('.save-btn').style.display = 'inline-block';
+            row.querySelector('.cancel-btn').style.display = 'inline-block';
+        });
+    });
+    
+    saveButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const row = document.querySelector(`tr[data-id="${id}"]`);
+            const select = row.querySelector('.category-edit');
+            const newCategory = select.value;
+            const descriptionInput = row.querySelector('.description-edit input');
+            const newDescription = descriptionInput.value;
+            
+            // Send update to server
+            fetch('/update_transaction', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    transaction_idx: parseInt(id),
+                    category: newCategory,
+                    description: newDescription
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update display
+                    const categoryDisplay = row.querySelector('.category-display');
+                    categoryDisplay.textContent = newCategory;
+                    
+                    const descriptionDisplay = row.querySelector('.description-display');
+                    descriptionDisplay.textContent = newDescription || 'No description';
+                    
+                    // Show display elements, hide edit elements
+                    categoryDisplay.style.display = 'inline-block';
+                    select.style.display = 'none';
+                    descriptionDisplay.style.display = 'block';
+                    row.querySelector('.description-edit').style.display = 'none';
+                    
+                    // Show edit button, hide save and cancel buttons
+                    row.querySelector('.edit-btn').style.display = 'inline-block';
+                    row.querySelector('.save-btn').style.display = 'none';
+                    row.querySelector('.cancel-btn').style.display = 'none';
+                }
+            });
+        });
+    });
+    
+    cancelButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const row = document.querySelector(`tr[data-id="${id}"]`);
+            
+            // Show display elements, hide edit elements
+            row.querySelector('.category-display').style.display = 'inline-block';
+            row.querySelector('.category-edit').style.display = 'none';
+            row.querySelector('.description-display').style.display = 'block';
+            row.querySelector('.description-edit').style.display = 'none';
+            
+            // Show edit button, hide save and cancel buttons
+            row.querySelector('.edit-btn').style.display = 'inline-block';
+            row.querySelector('.save-btn').style.display = 'none';
+            row.querySelector('.cancel-btn').style.display = 'none';
+        });
+    });
+    
+    // Export functionality
+    document.getElementById('export-btn').addEventListener('click', function() {
+        const exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
+        exportModal.show();
+    });
+    
+    document.getElementById('confirm-export').addEventListener('click', function() {
+        const format = document.getElementById('export-format').value;
+        window.location.href = `/export?format=${format}`;
+    });
+    
+    // Account type options
+    function updateAccountTypeOptions() {
+        const bank = document.getElementById('bank').value;
+        const accountTypeSelect = document.getElementById('account_type');
+        
+        // Reset options
+        accountTypeSelect.innerHTML = '<option value="">Select Account Type</option>';
+        
+        if (bank === 'HDFC') {
+            accountTypeSelect.innerHTML += `
+                <option value="savings">Savings Account</option>
+                <option value="credit_card">Credit Card</option>
+                <option value="current">Current Account</option>
+            `;
+        } else if (bank === 'AMEX') {
+            accountTypeSelect.innerHTML += `
+                <option value="credit_card">Credit Card</option>
+            `;
+        } else {
+            accountTypeSelect.innerHTML += `
+                <option value="savings">Savings Account</option>
+                <option value="credit_card">Credit Card</option>
+                <option value="current">Current Account</option>
+            `;
+        }
+        
+        updateAccountNameOptions();
+    }
+    
+    function updateAccountNameOptions() {
+        const bank = document.getElementById('bank').value;
+        const accountType = document.getElementById('account_type').value;
+        const accountNameSelect = document.getElementById('account_name');
+        
+        // Reset options
+        accountNameSelect.innerHTML = '<option value="">Select Account</option>';
+        
+        if (bank === 'HDFC' && accountType === 'credit_card') {
+            accountNameSelect.innerHTML += `
+                <option value="HDFC Credit Card">HDFC Credit Card</option>
+            `;
+        } else if (bank === 'HDFC' && accountType === 'savings') {
+            accountNameSelect.innerHTML += `
+                <option value="HDFC Savings Account">HDFC Savings Account</option>
+            `;
+        } else if (bank === 'AMEX' && accountType === 'credit_card') {
+            accountNameSelect.innerHTML += `
+                <option value="AMEX Credit Card">AMEX Credit Card</option>
+            `;
+        } else if (bank && accountType) {
+            accountNameSelect.innerHTML += `
+                <option value="${bank} ${accountType}">${bank} ${accountType.replace('_', ' ')}</option>
+            `;
+        }
+    }
+
+    // Bulk edit functionality
+    let bulkEditMode = false;
+
+    document.getElementById('bulk-edit-btn').addEventListener('click', function() {
+        bulkEditMode = !bulkEditMode;
+        
+        if (bulkEditMode) {
+            // Show checkboxes and bulk edit card
+            document.querySelectorAll('.transaction-checkbox').forEach(cb => cb.style.display = 'block');
+            document.getElementById('select-all-checkbox').style.display = 'block';
+            document.getElementById('bulk-edit-card').style.display = 'block';
+            this.innerHTML = '<i class="bi bi-x me-1"></i> Cancel Bulk Edit';
+            this.classList.remove('btn-outline-primary');
+            this.classList.add('btn-outline-danger');
+        } else {
+            // Hide checkboxes and bulk edit card
+            document.querySelectorAll('.transaction-checkbox').forEach(cb => {
+                cb.style.display = 'none';
+                cb.checked = false;
+            });
+            document.getElementById('select-all-checkbox').style.display = 'none';
+            document.getElementById('bulk-edit-card').style.display = 'none';
+            this.innerHTML = '<i class="bi bi-pencil-square me-1"></i> Bulk Edit';
+            this.classList.remove('btn-outline-danger');
+            this.classList.add('btn-outline-primary');
+            updateSelectedCount();
+        }
+    });
+
+    // Select all functionality
+    document.getElementById('select-all-btn').addEventListener('click', function() {
+        if (!bulkEditMode) {
+            document.getElementById('bulk-edit-btn').click(); // Enable bulk edit mode first
+        }
+        
+        const checkboxes = document.querySelectorAll('.transaction-checkbox');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+        document.getElementById('select-all-checkbox').checked = !allChecked;
+        updateSelectedCount();
+    });
+    
+    // Select all checkbox functionality
+    document.getElementById('select-all-checkbox').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.transaction-checkbox');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        updateSelectedCount();
+    });
+
+    // Double-click to edit description
+    document.querySelectorAll('.description-display').forEach(display => {
+        display.addEventListener('dblclick', function() {
+            const row = this.closest('tr');
+            const id = row.getAttribute('data-id');
+            
+            // Toggle to edit mode
+            this.style.display = 'none';
+            row.querySelector('.description-edit').style.display = 'block';
+            
+            // If not already in edit mode, switch to it
+            if (row.querySelector('.edit-btn').style.display !== 'none') {
+                row.querySelector('.edit-btn').click();
+            }
+        });
+    });
+
+    // Update selected count
+    function updateSelectedCount() {
+        const selectedCount = document.querySelectorAll('.transaction-checkbox:checked').length;
+        document.getElementById('selected-count').textContent = `${selectedCount} transactions selected`;
+    }
+
+    // Listen for checkbox changes
+    document.querySelectorAll('.transaction-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSelectedCount);
+    });
+
+    // Apply bulk edit
+    document.getElementById('apply-bulk-edit').addEventListener('click', function() {
+        const selectedTransactions = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
+        const newCategory = document.getElementById('bulk-category').value;
+        
+        if (selectedTransactions.length === 0) {
+            alert('Please select at least one transaction');
+            return;
+        }
+        
+        if (confirm(`Are you sure you want to change ${selectedTransactions.length} transactions to category "${newCategory}"?`)) {
+            // Send bulk update request
+            fetch('/bulk_update_categories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    transaction_indices: selectedTransactions,
+                    category: newCategory
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Successfully updated ${selectedTransactions.length} transactions`);
+                    location.reload();
+                } else {
+                    alert('Failed to update transactions');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to update transactions');
+            });
+        }
+    });
+
+    // Cancel bulk edit
+    document.getElementById('cancel-bulk-edit').addEventListener('click', function() {
+        document.getElementById('bulk-edit-btn').click();
+    });
+</script>
+{% endblock %}
