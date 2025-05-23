@@ -34,7 +34,7 @@ Currently supported bank statement formats:
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/personal-finance-dashboard.git
+   git clone https://github.com/Srinidhi94/personal-finance-dashboard.git
    cd personal-finance-dashboard
    ```
 
@@ -127,3 +127,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## Contact
+
+For questions and support, please reach out to the project maintainer:
+- GitHub: [@Srinidhi94](https://github.com/Srinidhi94)
