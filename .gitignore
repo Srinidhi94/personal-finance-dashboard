@@ -56,7 +56,6 @@ pipeline_test_results.json
 
 # Exceptions - Files we want to keep in Git
 !uploads/.gitkeep
-!uploads/Statement_Example.pdf
 !data/.gitkeep
 !data/account_config.json
 !data/categories.json
