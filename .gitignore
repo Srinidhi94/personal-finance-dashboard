@@ -57,6 +57,8 @@ data/*
 tests/test_results/
 pipeline_test_results.json
 .pytest_cache/
+data/*.json
+data/backups/
 
 # Exceptions - Files we want to keep in Git
 !uploads/.gitkeep
