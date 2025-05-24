@@ -11,6 +11,12 @@
       "account_type": "savings",
       "account_name": "HDFC Savings Account",
       "parser": "hdfc_savings"
+    },
+    {
+      "bank": "Federal Bank",
+      "account_type": "savings",
+      "account_name": "Federal Bank Savings Account",
+      "parser": "federal_bank"
     }
   ]
 }

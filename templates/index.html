@@ -5,9 +5,23 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">Dashboard</h2>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
-        <i class="bi bi-upload me-2"></i> Upload Statement
-    </button>
+    <div>
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-calendar-range me-2"></i> Time Period
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#">Last Month</a></li>
+                <li><a class="dropdown-item" href="#">Last 3 Months</a></li>
+                <li><a class="dropdown-item" href="#">Last 6 Months</a></li>
+                <li><a class="dropdown-item" href="#">This Year</a></li>
+                <li><a class="dropdown-item" href="#">All Time</a></li>
+            </ul>
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-upload me-2"></i> Upload Statement
+        </button>
+    </div>
 </div>
 
 <!-- Summary Stats Row -->
@@ -38,7 +52,172 @@
     </div>
 </div>
 
-<!-- Upload Statement Modal (Basic Version) -->
+<!-- Account Summary Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Account Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Bank</th>
+                                <th>Income</th>
+                                <th>Expenses</th>
+                                <th>Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for account in summary.account_summary %}
+                            <tr>
+                                <td><span class="fw-medium">{{ account.name }}</span></td>
+                                <td><span class="badge bg-light text-dark">{{ account.bank }}</span></td>
+                                <td class="text-success">₹{{ "{:,.2f}".format(account.income) }}</td>
+                                <td class="text-danger">₹{{ "{:,.2f}".format(account.expenses) }}</td>
+                                <td class="fw-bold {% if account.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    ₹{{ "{:,.2f}".format(account.balance) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analytics Charts Section -->
+<div class="row">
+    <!-- Left Column -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Monthly Income vs Expenses</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Category Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="categoryPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Right Column -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Top Categories</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Amount</th>
+                                <th>% of Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in summary.category_summary[:5] %}
+                            <tr>
+                                <td>{{ category.name }}</td>
+                                <td>₹{{ "{:,.2f}".format(category.total) }}</td>
+                                <td>
+                                    {% set percentage = (category.total / summary.total_expenses * 100) if summary.total_expenses > 0 else 0 %}
+                                    {{ "{:.1f}%".format(percentage) }}
+                                    <div class="progress mt-1" style="height: 4px;">
+                                        <div class="progress-bar" style="width: {{ percentage }}%"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Account Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="accountBarChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Transactions Section -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Transactions</h5>
+                <a href="/transactions" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th>Account</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tx in transactions %}
+                            <tr>
+                                <td>{{ tx.date }}</td>
+                                <td>{{ tx.description }}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark">{{ tx.category }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if tx.bank == 'HDFC' %}bg-info{% elif tx.bank == 'Federal Bank' %}bg-success{% else %}bg-secondary{% endif %} text-white">
+                                        {{ tx.bank }}
+                                    </span>
+                                </td>
+                                <td class="{% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {% if tx.amount > 0 %}
+                                        ₹{{ "{:,.2f}".format(tx.amount) }}
+                                    {% else %}
+                                        -₹{{ "{:,.2f}".format(tx.amount|abs) }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Statement Modal -->
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -52,7 +231,7 @@
                         <label for="bank" class="form-label">Bank</label>
                         <select class="form-select" id="bank" name="bank">
                             <option value="HDFC">HDFC Bank</option>
-                            <option value="AMEX">American Express</option>
+                            <option value="Federal Bank">Federal Bank</option>
                             <option value="Other">Other</option>
                         </select>
                     </div>
@@ -75,4 +254,157 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Initialize charts
+    document.addEventListener('DOMContentLoaded', function() {
+        // Monthly Chart
+        fetch('/api/charts/monthly_trends')
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error fetching monthly data:', error);
+                return { labels: [], datasets: [] };
+            })
+            .then(data => {
+                try {
+                    const ctx = document.getElementById('monthlyChart').getContext('2d');
+                    
+                    // If we don't have real data yet, create some placeholder data
+                    if (!data.labels || data.labels.length === 0) {
+                        data = {
+                            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+                            datasets: [
+                                {
+                                    label: 'Income',
+                                    data: [0, 0, 0, 0, 0],
+                                    backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                                },
+                                {
+                                    label: 'Expenses',
+                                    data: [0, 0, 0, 0, 0],
+                                    backgroundColor: 'rgba(255, 99, 132, 0.6)'
+                                }
+                            ]
+                        };
+                    }
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: data,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '₹' + value.toLocaleString('en-IN');
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error creating monthly chart:', e);
+                }
+            });
+        
+        // Category Pie Chart
+        fetch('/api/charts/category_distribution')
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error fetching category data:', error);
+                return { labels: [], datasets: [{ data: [] }] };
+            })
+            .then(data => {
+                try {
+                    const ctx = document.getElementById('categoryPieChart').getContext('2d');
+                    
+                    // If we don't have real data yet, create some placeholder data
+                    if (!data.labels || data.labels.length === 0) {
+                        data = {
+                            labels: ['No Data'],
+                            datasets: [{
+                                data: [1],
+                                backgroundColor: ['#e0e0e0']
+                            }]
+                        };
+                    }
+                    
+                    new Chart(ctx, {
+                        type: 'pie',
+                        data: data,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right'
+                                }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error creating category chart:', e);
+                }
+            });
+        
+        // Account Bar Chart
+        fetch('/api/charts/account_distribution')
+            .then(response => response.json())
+            .catch(error => {
+                console.error('Error fetching account data:', error);
+                return { labels: [], datasets: [] };
+            })
+            .then(data => {
+                try {
+                    const ctx = document.getElementById('accountBarChart').getContext('2d');
+                    
+                    // If we don't have real data yet, create some placeholder data
+                    if (!data.labels || data.labels.length === 0) {
+                        data = {
+                            labels: ['No Data'],
+                            datasets: [
+                                {
+                                    label: 'Income',
+                                    data: [0],
+                                    backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                                },
+                                {
+                                    label: 'Expenses',
+                                    data: [0],
+                                    backgroundColor: 'rgba(255, 99, 132, 0.6)'
+                                }
+                            ]
+                        };
+                    }
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: data,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '₹' + value.toLocaleString('en-IN');
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error creating account chart:', e);
+                }
+            });
+    });
+</script>
 {% endblock %}

@@ -281,7 +281,7 @@ def generate_summary_data():
 
 @app.route('/')
 def index():
-    # Generate summary data for dashboard
+    # Generate summary data for combined dashboard & analytics
     summary_data = generate_summary_data()
     
     return render_template('index.html', 
@@ -523,13 +523,8 @@ def get_accounts():
 
 @app.route('/dashboard')
 def dashboard():
-    # Generate summary data for dashboard
-    summary_data = generate_summary_data()
-    
-    return render_template('dashboard.html', 
-                          summary=summary_data,
-                          categories=CATEGORIES,
-                          accounts=ACCOUNT_CONFIG['accounts'])
+    # Redirect to home page since we've merged dashboard and analytics
+    return redirect(url_for('index'))
 
 @app.route('/transactions')
 def view_transactions():
