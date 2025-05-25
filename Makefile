@@ -3,7 +3,7 @@
 # This Makefile provides common operations for the expense tracker app,
 # including server management, database cleanup, and testing.
 
-.PHONY: run stop clean test test-pipeline test-pipeline-clean test-hdfc backup restore install debug parse reset-db help
+.PHONY: run stop clean test test-pipeline test-pipeline-clean test-hdfc backup restore install debug parse reset-db help clean-backups
 
 # Default port for the web server
 PORT ?= 5000
@@ -11,6 +11,10 @@ PORT ?= 5000
 DB_FILE = data/transactions.json
 # Backup directory
 BACKUP_DIR = data/backups
+# Test results directory
+TEST_RESULTS_DIR = tests/test_results
+# Number of days to keep backups
+BACKUP_DAYS = 7
 
 # Run the web server
 run:
@@ -32,20 +36,43 @@ clean:
 	@echo "Cleaning up..."
 	@find . -type d -name "__pycache__" -exec rm -rf {} +
 	@find . -type f -name "*.pyc" -delete
-	@rm -f pipeline_test_results.json
-	@echo "Cleaned up __pycache__ directories, .pyc files, and test results"
+	@find . -type f -name "pipeline_test_results.json" -delete
+	@find . -type f -name "federal_bank_debug_*.json" -delete
+	@find . -type f -name "federal_bank_consolidated_*.json" -delete
+	@find . -type f -name "federal_bank_new_debug_*.json" -delete
+	@find . -type f -name "*.bak" -delete
+	@find . -type f -name "*.tmp" -delete
+	@find . -type f -name "debug_*.json" -delete
+	@find . -type f -name "test_*.json" -delete
+	@rm -rf $(TEST_RESULTS_DIR)/*
+	@mkdir -p $(TEST_RESULTS_DIR)
+	@touch $(TEST_RESULTS_DIR)/.gitkeep
+	@echo "Cleaned up __pycache__ directories, .pyc files, test results, debug files and temporary files"
+
+# Clean up old backups
+clean-backups:
+	@echo "Cleaning up old backups (older than $(BACKUP_DAYS) days)..."
+	@if [ -d $(BACKUP_DIR) ]; then \
+		find $(BACKUP_DIR) -name "transactions_backup_*.json" -mtime +$(BACKUP_DAYS) -delete; \
+		echo "Removed backups older than $(BACKUP_DAYS) days."; \
+	else \
+		echo "Backup directory not found."; \
+	fi
 
 # Reset transactions database
 reset-db:
 	@echo "Resetting transactions database..."
 	@if [ -f $(DB_FILE) ]; then \
 		mkdir -p $(BACKUP_DIR); \
-		cp $(DB_FILE) $(BACKUP_DIR)/transactions_backup_$$(date +%Y%m%d_%H%M%S).json; \
+		BACKUP_FILE=$(BACKUP_DIR)/transactions_backup_$$(date +%Y%m%d_%H%M%S).json; \
+		cp $(DB_FILE) $$BACKUP_FILE; \
 		echo "[]" > $(DB_FILE); \
-		echo "Transactions have been reset. Backup created."; \
+		echo "Transactions have been reset. Backup created at $$BACKUP_FILE"; \
+		$(MAKE) clean-backups; \
 	else \
+		mkdir -p $$(dirname $(DB_FILE)); \
 		echo "[]" > $(DB_FILE); \
-		echo "Transaction database created."; \
+		echo "Transaction database created at $(DB_FILE)"; \
 	fi
 
 # Create a backup of the database
@@ -110,7 +137,8 @@ help:
 	@echo "  make run         - Start the Flask server on port $(PORT)"
 	@echo "  make debug       - Start the server in debug mode"
 	@echo "  make stop        - Stop the running server"
-	@echo "  make clean       - Clean up cache files"
+	@echo "  make clean       - Clean up cache files and test results"
+	@echo "  make clean-backups - Remove backups older than $(BACKUP_DAYS) days"
 	@echo "  make reset-db    - Reset the transactions database (with backup)"
 	@echo "  make backup      - Create a backup of the transactions database"
 	@echo "  make restore     - Restore from the latest backup"

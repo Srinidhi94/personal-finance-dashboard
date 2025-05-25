@@ -1,3 +1,7 @@
+"""
+Federal Bank statement parser package
+"""
+
 from .hdfc_credit_card import extract_hdfc_credit_card, detect_hdfc_credit_card
 from .hdfc_savings import extract_hdfc_savings, detect_hdfc_savings 
 from .generic import extract_generic_transactions

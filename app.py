@@ -549,8 +549,29 @@ def view_transactions():
     if date_to:
         filtered_transactions = [t for t in filtered_transactions if t['date'] <= date_to]
     
-    # Sort by date (newest first)
-    filtered_transactions.sort(key=lambda x: x['date'], reverse=True)
+    # Sort by date (oldest first)
+    # Convert date strings to datetime objects for proper sorting
+    def parse_date_for_sorting(date_str):
+        try:
+            # Parse DD/MM/YYYY format (most common)
+            return datetime.strptime(date_str, "%d/%m/%Y")
+        except ValueError:
+            try:
+                # Try YYYY-MM-DD format
+                return datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                try:
+                    # Try DD-MM-YYYY format
+                    return datetime.strptime(date_str, "%d-%m-%Y")
+                except ValueError:
+                    # If all else fails, return a very old date
+                    # This ensures unparseable dates are at the beginning
+                    # and can be easily identified and fixed
+                    print(f"Warning: Could not parse date format: {date_str}")
+                    return datetime(1900, 1, 1)
+    
+    # Sort transactions by date (oldest first)
+    filtered_transactions.sort(key=lambda x: parse_date_for_sorting(x['date']))
     
     return render_template('transactions.html', 
                           transactions=filtered_transactions,
