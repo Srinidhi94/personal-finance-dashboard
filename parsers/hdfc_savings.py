@@ -104,9 +104,14 @@ def extract_statement_metadata(doc):
         print(f"[DEBUG] Extracting metadata from:\n{first_page_text}")
         
         # Extract account holder
-        account_holder_match = re.search(r'MR\s+([A-Z\s]+?)(?:\n|$)', first_page_text)
+        account_holder_match = re.search(r'MR\.\s*([A-Z\s]+?)(?:\n|$)', first_page_text)
         if account_holder_match:
             metadata["account_holder"] = account_holder_match.group(1).strip()
+        else:
+            # Try alternate format
+            alt_match = re.search(r'(?:^|\n)([A-Z][A-Z\s]+R)(?:\n|$)', first_page_text)
+            if alt_match:
+                metadata["account_holder"] = alt_match.group(1).strip()
             
         # Extract account number
         account_num_match = re.search(r'Account No\s*:?\s*(\d+)', first_page_text)
@@ -114,25 +119,17 @@ def extract_statement_metadata(doc):
             metadata["account_num"] = account_num_match.group(1)
         
         # Extract branch
-        branch_match = re.search(r'Account Branch\s*:?\s*([A-Z\s]+?)(?:\n|$)', first_page_text)
+        branch_match = re.search(r'Branch\s*:?\s*([A-Z\s]+?)(?:\n|$)', first_page_text)
         if branch_match:
             metadata["branch"] = branch_match.group(1).strip()
         
-        # Try to get the first transaction's balance as opening balance
-        lines = first_page_text.split('\n')
-        for i, line in enumerate(lines):
-            if re.match(r'^\d{2}/\d{2}/\d{2}$', line.strip()):
-                # Look for balance in next few lines
-                for j in range(i, min(i + 5, len(lines))):
-                    balance_match = re.match(r'^[\d,]+\.\d{2}$', lines[j].strip())
-                    if balance_match:
-                        try:
-                            metadata["opening_balance"] = float(balance_match.group(0).replace(',', ''))
-                            break
-                        except ValueError:
-                            pass
-                if metadata["opening_balance"] is not None:
-                    break
+        # Extract opening balance
+        opening_match = re.search(r'Opening Balance\s*:?\s*([\d,]+\.\d{2})', first_page_text)
+        if opening_match:
+            try:
+                metadata["opening_balance"] = float(opening_match.group(1).replace(',', ''))
+            except ValueError:
+                pass
         
         print(f"[DEBUG] Extracted metadata: {metadata}")
             
@@ -154,6 +151,16 @@ def extract_transactions(doc, metadata):
     """
     transactions = []
     
+    # Add opening balance as first transaction if available
+    if metadata["opening_balance"] is not None:
+        transactions.append({
+            "date": None,  # Opening balance date not required
+            "description": "Opening Balance",
+            "amount": 0,  # Don't count in totals
+            "type": "balance",  # Special type for opening balance
+            "balance": metadata["opening_balance"]
+        })
+    
     # Process each page
     for page_num in range(len(doc)):
         page_text = doc[page_num].get_text()
@@ -170,29 +177,29 @@ def extract_transactions(doc, metadata):
                 continue
             
             # Look for transaction date (DD/MM/YY)
-            date_match = re.match(r'^(\d{2}/\d{2}/\d{2})$', line)
+            date_match = re.match(r'(\d{2}/\d{2}/\d{2})$', line)
             if date_match:
                 date = parse_date(date_match.group(1))
                 
                 # Look for reference number in next line
                 if i + 1 < len(lines):
                     ref_line = lines[i + 1].strip()
-                    ref_match = re.match(r'^(\d{12})$', ref_line)
+                    ref_match = re.match(r'(\d{12}\d*)', ref_line)
                     if ref_match:
-                        reference = ref_match.group(1)
+                        reference = ref_match.group(1)  # Keep the full reference number
                         
                         # Look for description in next line
                         if i + 2 < len(lines):
                             description = lines[i + 2].strip()
                             
-                            # Look for amount and balance in next line
+                            # Look for amount and balance in next lines
                             if i + 3 < len(lines) and i + 4 < len(lines):
-                                amount_str = lines[i + 3].strip()
-                                balance_str = lines[i + 4].strip()
+                                amount_str = lines[i + 3].strip().replace(',', '')
+                                balance_str = lines[i + 4].strip().replace(',', '')
                                 
                                 try:
-                                    amount = float(amount_str.replace(',', ''))
-                                    balance = float(balance_str.replace(',', ''))
+                                    amount = float(amount_str)
+                                    balance = float(balance_str)
                                     
                                     # Determine if credit or debit based on balance change
                                     is_credit = True
@@ -216,6 +223,7 @@ def extract_transactions(doc, metadata):
             
             i += 1
     
+    print(f"[DEBUG] Found {len(transactions)} transactions")
     return transactions
 
 def extract_hdfc_savings(pdf_path):

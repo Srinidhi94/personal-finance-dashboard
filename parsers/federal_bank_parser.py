@@ -135,34 +135,21 @@ def extract_transactions(doc, statement_year):
         list: List of transaction dictionaries
     """
     transactions = []
-    current_date = None
-    current_description = None
     
     # Get opening balance from first page
     first_page_text = doc[0].get_text()
-    print("First page text:", first_page_text)  # Debug output
     
     # Try different opening balance patterns
     opening_match = None
     opening_patterns = [
-        r'Opening Balance\s*\non[^₹]*₹\s*([0-9,]+\.[0-9]{2})',  # Standard format
-        r'Opening Balance\s*\non[^₹]*₹\s*([0-9,]+)',  # Without decimals
-        r'Opening Balance\s*\non.*?\n.*?₹\s*([\d,]+\.\d{2})',  # Multi-line format
-        r'Opening Balance\s*\non.*?\n.*?₹([0-9,]+\.[0-9]{2})',  # No space after ₹
-        r'Opening Balance\s*\non.*?₹\s*([0-9,]+\.[0-9]{2})',  # Single line with ₹
+        r'Opening Balance\s*\non[^₹]*₹\s*([0-9,]+\.[0-9]{2})',  # With ₹ symbol
+        r'Opening Balance\s*\non[^0-9]*([0-9,]+\.[0-9]{2})',  # Without ₹ symbol
         r'Opening Balance\s*\non.*?(\d{1,3}(?:,\d{3})*\.\d{2})',  # Just the number
-        r'Opening Balance\s*\non.*?₹\s*(\d{1,3}(?:,\d{3})*\.\d{2})',  # ₹ with number
-        r'Opening Balance\s*\non.*?·\s*([0-9,]+\.[0-9]{2})',  # PDF dot format
-        r'Opening Balance\s*\non.*?·([0-9,]+\.[0-9]{2})',  # PDF dot no space
-        r'Opening Balance\s*\non.*?[₹·]\s*([0-9,]+\.[0-9]{2})',  # Any currency symbol
-        r'Opening Balance\s*\non.*?[₹·]([0-9,]+\.[0-9]{2})',  # Any currency symbol no space
-        r'Opening Balance\s*\non.*?[₹·]?\s*([0-9,]+\.[0-9]{2})',  # Optional currency symbol
-        r'Opening Balance\s*\non.*?[₹·]?\s*(\d{1,3}(?:,\d{3})*\.\d{2})',  # Optional symbol with commas
-        r'Opening Balance\s*\non.*?[₹·]?\s*(\d+(?:,\d{3})*\.\d{2})',  # Optional symbol with any number
+        r'Opening Balance\s*\non.*?[₹·]?\s*(\d+(?:,\d{3})*\.\d{2})',  # Optional symbol with commas
         r'Opening Balance\s*\non.*?[₹·]?\s*(\d+(?:[,\.]\d+)*)',  # Most flexible pattern
-        r'Opening Balance\s*\non.*?[₹·]?\s*(\d+(?:[,\.]\d+)*)\s*(?:\n|$)'  # End of line or newline
     ]
     
+    # First try exact patterns
     for pattern in opening_patterns:
         opening_match = re.search(pattern, first_page_text, re.DOTALL | re.IGNORECASE)
         if opening_match:
@@ -175,48 +162,60 @@ def extract_transactions(doc, statement_year):
             except (ValueError, AttributeError):
                 continue
     
-    print("Opening balance match:", opening_match)  # Debug output
-    if opening_match:
-        print("Opening balance value:", opening_match.group(1))  # Debug output
+    # If no match found, try line-by-line approach
+    if not opening_match:
+        lines = first_page_text.split('\n')
+        for i, line in enumerate(lines):
+            if "Opening Balance" in line and i + 2 < len(lines):
+                # Skip the "on DD MMM YYYY" line
+                balance_line = lines[i + 2].strip()
+                # Try to extract number from the balance line
+                balance_match = re.search(r'[₹·]?\s*([0-9,]+\.[0-9]{2})', balance_line)
+                if balance_match:
+                    try:
+                        value = balance_match.group(1).replace(',', '')
+                        opening_balance = float(value)
+                        opening_match = balance_match
+                        break
+                    except (ValueError, AttributeError):
+                        continue
     
     opening_balance = float(opening_match.group(1).replace(',', '')) if opening_match else None
-    print("Opening balance:", opening_balance)  # Debug output
+    print(f"[DEBUG] Opening balance: {opening_balance}")
     
     # Add opening balance as first transaction if found
     if opening_balance is not None:
         opening_date_match = re.search(r'Opening Balance\s*\non\s*(\d{1,2}\s+[A-Z][a-z]{2})', first_page_text, re.IGNORECASE)
-        print("Opening date match:", opening_date_match)  # Debug output
-        if opening_date_match:
-            print("Opening date value:", opening_date_match.group(1))  # Debug output
-        
         opening_date = parse_date(opening_date_match.group(1), statement_year) if opening_date_match else None
-        print("Opening date:", opening_date)  # Debug output
+        print(f"[DEBUG] Opening date: {opening_date}")
         
-        if opening_date:
-            transactions.append({
-                "date": opening_date,
-                "description": "Opening Balance",
-                "amount": 0,  # Don't count in totals
-                "type": "balance",  # Special type for opening balance
-                "category": "Opening Balance",
-                "account": "Federal Bank Savings",
-                "account_type": "savings",
-                "bank": "Federal Bank",
-                "account_name": "Federal Bank Savings Account",
-                "is_debit": False,
-                "transaction_id": "opening_balance",
-                "balance": opening_balance,
-                "sort_key": (0, opening_balance)  # Default priority for opening balance
-            })
+        transactions.append({
+            "date": opening_date,
+            "description": "Opening Balance",
+            "amount": 0,  # Don't count in totals
+            "type": "balance",  # Special type for opening balance
+            "balance": opening_balance
+        })
     
     # Process each line for transactions
     lines = first_page_text.split('\n')
     i = 0
+    in_closing_balance = False
+    
     while i < len(lines):
         line = lines[i].strip()
         
-        # Skip empty lines and closing balance
-        if not line or "Closing Balance" in line:
+        # Skip empty lines and closing balance section
+        if not line:
+            i += 1
+            continue
+        
+        if "Closing Balance" in line:
+            in_closing_balance = True
+            i += 1
+            continue
+        
+        if in_closing_balance:
             i += 1
             continue
         
@@ -225,52 +224,47 @@ def extract_transactions(doc, statement_year):
         if date_match:
             date = parse_date(date_match.group(1), statement_year)
             if date:
-                # Look for amount and balance in next lines
-                for j in range(1, 4):  # Look ahead up to 3 lines
-                    if i + j >= len(lines):
-                        break
+                # Look for transaction details in next line
+                if i + 1 < len(lines):
+                    description = lines[i + 1].strip()
                     
-                    next_line = lines[i + j].strip()
-                    if not next_line:
-                        continue
-                    
-                    # Try to find description, amount and balance
-                    amount_match = re.search(r'([\d,]+\.\d{2})\s*([\d,]+\.\d{2})?', next_line)
-                    if amount_match:
-                        description = next_line[:amount_match.start()].strip()
-                        amount = float(amount_match.group(1).replace(',', ''))
-                        balance = float(amount_match.group(2).replace(',', '')) if amount_match.group(2) else None
+                    # Look for amount and balance in next lines
+                    if i + 2 < len(lines) and i + 3 < len(lines):
+                        amount_str = lines[i + 2].strip().replace(',', '')
+                        balance_str = lines[i + 3].strip().replace(',', '')
                         
-                        # Determine transaction type based on description and balance change
-                        if balance is not None and len(transactions) > 0:
-                            prev_balance = transactions[-1]["balance"]
-                            is_credit = balance > prev_balance
+                        try:
+                            amount = float(amount_str)
+                            balance = float(balance_str)
+                            
+                            # Determine if credit or debit based on description and balance change
+                            is_credit = True
+                            if len(transactions) > 0:
+                                prev_balance = transactions[-1]["balance"]
+                                is_credit = balance > prev_balance
+                            
+                            # Override credit/debit based on description patterns
+                            if any(pattern in description for pattern in ["POS/", "TO INTL", "CHRG/", "Visa Other", "UPI/DR/", "IMPS/DR/", "NEFT/DR/", "TO ECM/"]):
+                                is_credit = False
+                            elif any(pattern in description for pattern in ["UPI/CR/", "IMPS/CR/", "NEFT/CR/", "ForexMarkupRefund/"]):
+                                is_credit = True
                             
                             transactions.append({
                                 "date": date,
                                 "description": description,
                                 "amount": amount if is_credit else -amount,
                                 "type": "credit" if is_credit else "debit",
-                                "category": "Uncategorized",
-                                "account": "Federal Bank Savings",
-                                "account_type": "savings",
-                                "bank": "Federal Bank",
-                                "account_name": "Federal Bank Savings Account",
-                                "is_debit": not is_credit,
-                                "transaction_id": f"{date}_{amount}_{len(transactions)}",
-                                "balance": balance,
-                                "sort_key": (0, balance)  # Default priority for Visa charges
+                                "balance": balance
                             })
                             
-                            i += j  # Skip processed lines
-                            break
-                
+                            i += 3  # Skip processed lines
+                            continue
+                        except ValueError:
+                            pass
+        
         i += 1
     
-    # Sort transactions by date and sort key
-    transactions.sort(key=lambda x: (x["date"], x.get("sort_key", (0, 0))))
-    
-    print(f"Extracted {len(transactions)} transactions")
+    print(f"[DEBUG] Found {len(transactions)} transactions")
     return transactions
 
 
@@ -298,8 +292,18 @@ def extract_federal_bank_savings(pdf_path):
         
         print(f"Extracted {len(transactions)} transactions")
         
-        # Sort transactions by date
-        transactions.sort(key=lambda x: x["date"])
+        # Sort transactions by date, keeping opening balance first
+        if len(transactions) > 0:
+            opening_balance = None
+            if transactions[0]["type"] == "balance":
+                opening_balance = transactions.pop(0)
+            
+            # Sort remaining transactions by date
+            transactions.sort(key=lambda x: x["date"] or "")
+            
+            # Put opening balance back at the start
+            if opening_balance:
+                transactions.insert(0, opening_balance)
         
     except Exception as e:
         print(f"Error processing Federal Bank statement: {str(e)}")
