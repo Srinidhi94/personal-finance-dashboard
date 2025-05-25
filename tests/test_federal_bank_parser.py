@@ -5,15 +5,9 @@ This test verifies that the parser correctly identifies transactions and their t
 based on transaction patterns and balance changes.
 """
 
-import os
-import sys
-import json
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 from datetime import datetime
-
-# Add parent directory to path to import parsers
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from parsers.federal_bank_parser import (
     detect_federal_bank_savings,
@@ -21,48 +15,6 @@ from parsers.federal_bank_parser import (
     parse_date,
     extract_statement_metadata
 )
-
-@pytest.fixture
-def mock_pdf_text():
-    """Mock PDF text content"""
-    return """
-    Statement Period: 01 May 2024 to 31 May 2024
-    SAVINGS A/C NO: 12345678901
-    IFSC: FDRL0123456
-    Transaction Details
-    Opening Balance
-    on 01 May 2024
-    ₹10,000.00
-    
-    01 May
-    UPI/CR/123456789/CREDIT
-    5,000.00
-    15,000.00
-    
-    02 May
-    POS/DEBIT CARD/AMAZON
-    1,500.00
-    13,500.00
-    
-    03 May
-    NEFT/CR/SALARY/COMPANY
-    50,000.00
-    63,500.00
-    
-    Closing Balance
-    on 31 May 2024
-    ₹63,500.00
-    """
-
-@pytest.fixture
-def mock_pdf_doc(mock_pdf_text):
-    """Mock PDF document"""
-    mock_doc = MagicMock()
-    mock_page = MagicMock()
-    mock_page.get_text.return_value = mock_pdf_text
-    mock_doc.__getitem__.return_value = mock_page
-    mock_doc.__len__.return_value = 1
-    return mock_doc
 
 def test_detect_federal_bank_savings():
     """Test statement detection"""
@@ -104,33 +56,9 @@ def test_extract_statement_metadata(mock_pdf_doc):
     assert "account_holder" in metadata
     assert metadata["account_num"] == "12345678901"
 
-def test_extract_transactions():
+def test_extract_transactions(mock_pdf_doc):
     """Test transaction extraction"""
-    with patch('fitz.open') as mock_open:
-        # Set up mock
-        mock_doc = MagicMock()
-        mock_page = MagicMock()
-        mock_page.get_text.return_value = """
-        Statement Period: 01 May 2024 to 31 May 2024
-        
-        Opening Balance
-        on 01 May 2024
-        ₹10,000.00
-        
-        01 May
-        UPI/CR/123456789/CREDIT
-        5,000.00
-        15,000.00
-        
-        02 May
-        POS/DEBIT CARD/AMAZON
-        1,500.00
-        13,500.00
-        """
-        mock_doc.__getitem__.return_value = mock_page
-        mock_doc.__len__.return_value = 1
-        mock_open.return_value = mock_doc
-        
+    with patch('fitz.open', return_value=mock_pdf_doc):
         transactions = extract_federal_bank_savings("test.pdf")
         
         assert isinstance(transactions, list)
@@ -242,6 +170,3 @@ def test_error_handling():
     
     # Test with invalid date
     assert parse_date("invalid_date", 2024) is None
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--cov=parsers.federal_bank_parser"])
