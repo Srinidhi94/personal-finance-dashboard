@@ -6,7 +6,7 @@
 .PHONY: run stop clean test test-pipeline test-pipeline-clean test-hdfc backup restore install debug parse reset-db help clean-backups
 
 # Default port for the web server
-PORT ?= 5000
+PORT ?= 5001
 # Default database file
 DB_FILE = data/transactions.json
 # Backup directory

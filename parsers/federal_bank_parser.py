@@ -147,15 +147,33 @@ def extract_transactions(doc, statement_year):
     opening_patterns = [
         r'Opening Balance\s*\non[^₹]*₹\s*([0-9,]+\.[0-9]{2})',  # Standard format
         r'Opening Balance\s*\non[^₹]*₹\s*([0-9,]+)',  # Without decimals
-        r'Opening Balance\s*\non[^₹]*₹\s*([\d,]+\.\d{2})',  # Alternative format
         r'Opening Balance\s*\non.*?\n.*?₹\s*([\d,]+\.\d{2})',  # Multi-line format
-        r'Opening Balance\s*\non.*?\n.*?₹([0-9,]+\.[0-9]{2})'  # No space after ₹
+        r'Opening Balance\s*\non.*?\n.*?₹([0-9,]+\.[0-9]{2})',  # No space after ₹
+        r'Opening Balance\s*\non.*?₹\s*([0-9,]+\.[0-9]{2})',  # Single line with ₹
+        r'Opening Balance\s*\non.*?(\d{1,3}(?:,\d{3})*\.\d{2})',  # Just the number
+        r'Opening Balance\s*\non.*?₹\s*(\d{1,3}(?:,\d{3})*\.\d{2})',  # ₹ with number
+        r'Opening Balance\s*\non.*?·\s*([0-9,]+\.[0-9]{2})',  # PDF dot format
+        r'Opening Balance\s*\non.*?·([0-9,]+\.[0-9]{2})',  # PDF dot no space
+        r'Opening Balance\s*\non.*?[₹·]\s*([0-9,]+\.[0-9]{2})',  # Any currency symbol
+        r'Opening Balance\s*\non.*?[₹·]([0-9,]+\.[0-9]{2})',  # Any currency symbol no space
+        r'Opening Balance\s*\non.*?[₹·]?\s*([0-9,]+\.[0-9]{2})',  # Optional currency symbol
+        r'Opening Balance\s*\non.*?[₹·]?\s*(\d{1,3}(?:,\d{3})*\.\d{2})',  # Optional symbol with commas
+        r'Opening Balance\s*\non.*?[₹·]?\s*(\d+(?:,\d{3})*\.\d{2})',  # Optional symbol with any number
+        r'Opening Balance\s*\non.*?[₹·]?\s*(\d+(?:[,\.]\d+)*)',  # Most flexible pattern
+        r'Opening Balance\s*\non.*?[₹·]?\s*(\d+(?:[,\.]\d+)*)\s*(?:\n|$)'  # End of line or newline
     ]
     
     for pattern in opening_patterns:
-        opening_match = re.search(pattern, first_page_text, re.DOTALL)
+        opening_match = re.search(pattern, first_page_text, re.DOTALL | re.IGNORECASE)
         if opening_match:
-            break
+            try:
+                value = opening_match.group(1).replace(',', '')
+                if '.' not in value:
+                    value += '.00'
+                opening_balance = float(value)
+                break
+            except (ValueError, AttributeError):
+                continue
     
     print("Opening balance match:", opening_match)  # Debug output
     if opening_match:
@@ -166,7 +184,7 @@ def extract_transactions(doc, statement_year):
     
     # Add opening balance as first transaction if found
     if opening_balance is not None:
-        opening_date_match = re.search(r'Opening Balance\s*\non\s*(\d{1,2}\s+[A-Z][a-z]{2})', first_page_text)
+        opening_date_match = re.search(r'Opening Balance\s*\non\s*(\d{1,2}\s+[A-Z][a-z]{2})', first_page_text, re.IGNORECASE)
         print("Opening date match:", opening_date_match)  # Debug output
         if opening_date_match:
             print("Opening date value:", opening_date_match.group(1))  # Debug output
@@ -338,6 +356,7 @@ def extract_transactions(doc, statement_year):
     # Sort transactions by date and sort key
     transactions.sort(key=lambda x: (x["date"], x.get("sort_key", (0, 0))))
     
+    print(f"Extracted {len(transactions)} transactions")
     return transactions
 
 
