@@ -209,149 +209,63 @@ def extract_transactions(doc, statement_year):
                 "sort_key": (0, opening_balance)  # Default priority for opening balance
             })
     
-    # Process each page
-    for page_num in range(len(doc)):
-        page_text = doc[page_num].get_text()
-        lines = page_text.split('\n')
+    # Process each line for transactions
+    lines = first_page_text.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
         
-        # Process each line
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-            
-            # Skip empty lines and headers/footers
-            if not line or any(marker in line for marker in ["PAGE", "CONTACT US", "5AM - 6PM", "6PM - 5AM", "ISSUED BY", "Comment •", "Transaction Details", "Day/Night", "Amount", "Balance", "Statement Period"]):
-                i += 1
-                continue
-            
-            # Check for date line (e.g., "02 May")
-            date_match = re.match(r'^(\d{1,2}\s+[A-Z][a-z]{2})$', line)
-            if date_match:
-                current_date = parse_date(date_match.group(1), statement_year)
-                current_description = None  # Reset description for new date
-                i += 1
-                continue
-            
-            if not current_date:
-                i += 1
-                continue
-            
-            # Look for transaction description
-            # Common patterns: POS/, TO INTL, CHRG/, UPI IN/, ForexMarkupRefund/, Visa Other, TO ECM
-            if any(pattern in line for pattern in ["POS/", "TO INTL", "CHRG/", "UPI IN/", "ForexMarkupRefund/", "Visa Other", "UPI/", "IMPS/", "NEFT/", "TO ECM/"]):
-                # Get amount and balance from next lines
-                amount = None
-                balance = None
-                
-                # Look for amount in next few lines
-                for j in range(1, 4):  # Look up to 3 lines ahead
-                    if i + j < len(lines):
-                        amount_line = lines[i + j].strip()
-                        if re.match(r'^[\d,]+\.\d{2}$', amount_line):
-                            try:
-                                # Remove commas and convert to float
-                                amount = float(amount_line.replace(',', ''))
-                                # Look for balance in next line
-                                if i + j + 1 < len(lines):
-                                    balance_line = lines[i + j + 1].strip()
-                                    if re.match(r'^[\d,]+\.\d{2}$', balance_line):
-                                        balance = float(balance_line.replace(',', ''))
-                                        i = i + j + 2  # Skip processed lines
-                                        break
-                            except ValueError:
-                                pass
-                
-                if amount is not None and balance is not None:
-                    # Determine if credit or debit
-                    is_credit = False
-                    
-                    # Check for credit indicators
-                    if any(indicator in line for indicator in ["ForexMarkupRefund/", "UPI IN/", "UPI/CR/", "IMPS/CR/", "NEFT/CR/"]):
-                        is_credit = True
-                    # Check for debit indicators
-                    elif any(indicator in line for indicator in ["POS/", "TO INTL", "CHRG/", "Visa Other", "UPI/DR/", "IMPS/DR/", "NEFT/DR/", "TO ECM/"]):
-                        is_credit = False
-                    # If still unsure, use balance change
-                    else:
-                        # Compare with previous transaction's balance
-                        if transactions:
-                            prev_balance = transactions[-1].get('balance', 0)
-                            is_credit = balance > prev_balance
-                    
-                    # Determine transaction type for sorting
-                    txn_type = 0  # Default priority
-                    if "TO INTL" in line:
-                        txn_type = 2  # International fee comes after main transaction
-                    elif "TO ECM" in line:
-                        txn_type = 1  # Main transaction comes first
-                    
-                    # Create transaction dictionary
-                    transaction = {
-                        "date": current_date,
-                        "description": line,
-                        "amount": amount if is_credit else -amount,
-                        "type": "credit" if is_credit else "debit",
-                        "category": "Uncategorized",
-                        "account": "Federal Bank Savings",
-                        "account_type": "savings",
-                        "bank": "Federal Bank",
-                        "account_name": "Federal Bank Savings Account",
-                        "is_debit": not is_credit,
-                        "transaction_id": f"{current_date}_{amount}_{len(transactions)}",
-                        "balance": balance,
-                        "sort_key": (txn_type, balance)  # Sort by type first, then balance
-                    }
-                    
-                    transactions.append(transaction)
-                    continue
-            
-            # Look for Visa Other Charges lines
-            visa_match = re.match(r'^Visa Other Chrgs (\d{2}/\d{2}/\d{4})\s+(.+)$', line)
-            if visa_match:
-                # Get amount and balance from next lines
-                amount = None
-                balance = None
-                
-                # Look for amount in next few lines
-                for j in range(1, 4):  # Look up to 3 lines ahead
-                    if i + j < len(lines):
-                        amount_line = lines[i + j].strip()
-                        if re.match(r'^[\d,]+\.\d{2}$', amount_line):
-                            try:
-                                # Remove commas and convert to float
-                                amount = float(amount_line.replace(',', ''))
-                                # Look for balance in next line
-                                if i + j + 1 < len(lines):
-                                    balance_line = lines[i + j + 1].strip()
-                                    if re.match(r'^[\d,]+\.\d{2}$', balance_line):
-                                        balance = float(balance_line.replace(',', ''))
-                                        i = i + j + 2  # Skip processed lines
-                                        break
-                            except ValueError:
-                                pass
-                
-                if amount is not None and balance is not None:
-                    # Create transaction dictionary for Visa charge
-                    transaction = {
-                        "date": current_date,
-                        "description": f"Visa Other Charges - {visa_match.group(2)}",
-                        "amount": -amount,  # Always debit
-                        "type": "debit",
-                        "category": "Bank Charges",
-                        "account": "Federal Bank Savings",
-                        "account_type": "savings",
-                        "bank": "Federal Bank",
-                        "account_name": "Federal Bank Savings Account",
-                        "is_debit": True,
-                        "transaction_id": f"{current_date}_{amount}_{len(transactions)}",
-                        "balance": balance,
-                        "sort_key": (0, balance)  # Default priority for Visa charges
-                    }
-                    
-                    transactions.append(transaction)
-                    continue
-            
+        # Skip empty lines and closing balance
+        if not line or "Closing Balance" in line:
             i += 1
+            continue
+        
+        # Look for date pattern (DD MMM)
+        date_match = re.match(r'(\d{1,2}\s+[A-Z][a-z]{2})', line)
+        if date_match:
+            date = parse_date(date_match.group(1), statement_year)
+            if date:
+                # Look for amount and balance in next lines
+                for j in range(1, 4):  # Look ahead up to 3 lines
+                    if i + j >= len(lines):
+                        break
+                    
+                    next_line = lines[i + j].strip()
+                    if not next_line:
+                        continue
+                    
+                    # Try to find description, amount and balance
+                    amount_match = re.search(r'([\d,]+\.\d{2})\s*([\d,]+\.\d{2})?', next_line)
+                    if amount_match:
+                        description = next_line[:amount_match.start()].strip()
+                        amount = float(amount_match.group(1).replace(',', ''))
+                        balance = float(amount_match.group(2).replace(',', '')) if amount_match.group(2) else None
+                        
+                        # Determine transaction type based on description and balance change
+                        if balance is not None and len(transactions) > 0:
+                            prev_balance = transactions[-1]["balance"]
+                            is_credit = balance > prev_balance
+                            
+                            transactions.append({
+                                "date": date,
+                                "description": description,
+                                "amount": amount if is_credit else -amount,
+                                "type": "credit" if is_credit else "debit",
+                                "category": "Uncategorized",
+                                "account": "Federal Bank Savings",
+                                "account_type": "savings",
+                                "bank": "Federal Bank",
+                                "account_name": "Federal Bank Savings Account",
+                                "is_debit": not is_credit,
+                                "transaction_id": f"{date}_{amount}_{len(transactions)}",
+                                "balance": balance,
+                                "sort_key": (0, balance)  # Default priority for Visa charges
+                            })
+                            
+                            i += j  # Skip processed lines
+                            break
+                
+        i += 1
     
     # Sort transactions by date and sort key
     transactions.sort(key=lambda x: (x["date"], x.get("sort_key", (0, 0))))

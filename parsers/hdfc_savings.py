@@ -165,7 +165,7 @@ def extract_transactions(doc, metadata):
             line = lines[i].strip()
             
             # Skip empty lines and headers
-            if not line or any(marker in line for marker in ["Page No", "Statement of account", "Opening Balance", "Closing Balance", "Date", "Narration", "Chq./Ref.No.", "Value Dt", "Withdrawal Amt.", "Deposit Amt."]):
+            if not line or any(marker in line for marker in ["Page No", "Statement of account", "Opening Balance:", "Closing Balance:", "Date", "Narration", "Chq./Ref.No.", "Value Dt", "Withdrawal Amt.", "Deposit Amt."]):
                 i += 1
                 continue
             
@@ -174,93 +174,47 @@ def extract_transactions(doc, metadata):
             if date_match:
                 date = parse_date(date_match.group(1))
                 
-                # Look for description and reference number in next lines
-                description = ""
-                reference = None
-                amount = None
-                balance = None
-                
-                # Look ahead up to 5 lines for transaction details
-                for j in range(1, 6):
-                    if i + j >= len(lines):
-                        break
+                # Look for reference number in next line
+                if i + 1 < len(lines):
+                    ref_line = lines[i + 1].strip()
+                    ref_match = re.match(r'^(\d{12})$', ref_line)
+                    if ref_match:
+                        reference = ref_match.group(1)
                         
-                    next_line = lines[i + j].strip()
-                    
-                    # Skip empty lines
-                    if not next_line:
-                        continue
-                    
-                    # Look for reference number (12+ digits)
-                    if not reference:
-                        ref_match = re.search(r'(\d{12}(?:\d+)?)', next_line)
-                        if ref_match:
-                            reference = ref_match.group(1)
-                            # Add description text before reference
-                            description += " " + next_line[:ref_match.start()].strip()
-                            continue
-                    
-                    # Look for amount and balance
-                    if re.match(r'^[\d,]+\.\d{2}$', next_line):
-                        if amount is None:
-                            amount = float(next_line.replace(',', ''))
-                        elif balance is None:
-                            balance = float(next_line.replace(',', ''))
-                            break
-                    else:
-                        # If not a number, it's part of the description
-                        description += " " + next_line
-                
-                if amount is not None and balance is not None:
-                    # Clean up description
-                    description = re.sub(r'\s+', ' ', description).strip()
-                    description = re.sub(r'-+$', '', description).strip()  # Remove trailing dashes
-                    
-                    # If no description was found, use a default one based on the amount
-                    if not description:
-                        description = f"Transaction of {abs(amount)}"
-                    
-                    # Determine if credit or debit
-                    prev_balance = transactions[-1]["balance"] if transactions else None
-                    if prev_balance is None:
-                        # If we don't have a previous balance, use the withdrawal/deposit columns
-                        withdrawal_match = re.search(r'Withdrawal Amt\.\s*([\d,]+\.\d{2})', page_text)
-                        deposit_match = re.search(r'Deposit Amt\.\s*([\d,]+\.\d{2})', page_text)
-                        
-                        if withdrawal_match:
-                            is_credit = False
-                        elif deposit_match:
-                            is_credit = True
-                        else:
-                            # Default to debit if we can't determine
-                            is_credit = False
-                    else:
-                        is_credit = balance > prev_balance
-                    
-                    # Create transaction
-                    transaction = {
-                        "date": date,
-                        "description": description,  # No longer using reference as fallback
-                        "amount": amount if is_credit else -amount,
-                        "type": "credit" if is_credit else "debit",
-                        "reference": reference,
-                        "balance": balance,
-                        "account": "HDFC Savings",
-                        "account_type": "savings",
-                        "bank": "HDFC",
-                        "account_name": "HDFC Savings Account",
-                        "account_number": metadata["account_num"],
-                        "branch": metadata["branch"]
-                    }
-                    
-                    transactions.append(transaction)
-                    i += j + 1
-                    continue
+                        # Look for description in next line
+                        if i + 2 < len(lines):
+                            description = lines[i + 2].strip()
+                            
+                            # Look for amount and balance in next line
+                            if i + 3 < len(lines) and i + 4 < len(lines):
+                                amount_str = lines[i + 3].strip()
+                                balance_str = lines[i + 4].strip()
+                                
+                                try:
+                                    amount = float(amount_str.replace(',', ''))
+                                    balance = float(balance_str.replace(',', ''))
+                                    
+                                    # Determine if credit or debit based on balance change
+                                    is_credit = True
+                                    if len(transactions) > 0:
+                                        prev_balance = transactions[-1]["balance"]
+                                        is_credit = balance > prev_balance
+                                    
+                                    transactions.append({
+                                        "date": date,
+                                        "reference": reference,
+                                        "description": description,
+                                        "amount": amount if is_credit else -amount,
+                                        "type": "credit" if is_credit else "debit",
+                                        "balance": balance
+                                    })
+                                    
+                                    i += 4  # Skip processed lines
+                                    continue
+                                except ValueError:
+                                    pass
             
             i += 1
-    
-    # Sort transactions by date and balance
-    transactions.sort(key=lambda x: (x["date"] or "", x["balance"]))
     
     return transactions
 
