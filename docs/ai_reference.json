@@ -1,0 +1,50 @@
+{
+    "version": "1.0",
+    "last_updated": "2024-05-25",
+    "documentation_structure": {
+        "architecture": {
+            "path": "architecture/*.md",
+            "description": "System architecture documentation",
+            "source_code_mapping": {
+                "storage.md": ["storage/*.py"],
+                "components.md": ["src/components/*.py"],
+                "data_flow.md": ["src/services/*.py"]
+            }
+        },
+        "parsers": {
+            "path": "parsers/*.md",
+            "description": "Bank statement parser documentation",
+            "source_code_mapping": {
+                "federal_bank.md": ["parsers/federal_bank_parser.py", "tests/test_federal_bank_parser.py"],
+                "hdfc_savings.md": ["parsers/hdfc_savings.py", "tests/test_hdfc_savings.py"],
+                "hdfc_credit_card.md": ["parsers/hdfc_credit_card.py", "tests/test_hdfc_credit_card.py"]
+            }
+        },
+        "api": {
+            "path": "api/*.md",
+            "description": "API documentation",
+            "source_code_mapping": {
+                "endpoints.md": ["api/routes/*.py"],
+                "models.md": ["api/models/*.py"],
+                "errors.md": ["api/errors.py"]
+            }
+        }
+    },
+    "ai_tools": {
+        "cursor": {
+            "doc_format": "markdown",
+            "code_block_format": "```language\ncode\n```",
+            "section_reference": "```startLine:endLine:filepath```"
+        },
+        "copilot": {
+            "doc_format": "markdown",
+            "inline_documentation": true,
+            "test_documentation": true
+        }
+    },
+    "update_triggers": {
+        "source_code": ["*.py"],
+        "tests": ["tests/*.py"],
+        "documentation": ["docs/**/*.md"]
+    }
+} 

@@ -141,9 +141,12 @@
                             </select>
                         </td>
                         <td>
-                            <span class="badge text-bg-{% if transaction.account_type == 'credit_card' %}danger{% else %}success{% endif %}">
-                                {{ transaction.account_name }}
-                            </span>
+                            <div>
+                                <span class="badge {% if transaction.account_type == 'credit_card' %}bg-danger{% elif transaction.bank == 'Federal Bank' %}bg-info{% else %}bg-success{% endif %} text-white">
+                                    {{ transaction.bank }}
+                                </span>
+                                <div class="small text-muted mt-1">{{ transaction.account_name }}</div>
+                            </div>
                         </td>
                         <td>
                             <span class="{% if transaction.amount > 0 %}text-success{% else %}text-danger{% endif %}">
@@ -219,6 +222,7 @@
                         <select class="form-select" id="bank" name="bank" onchange="updateAccountTypeOptions()">
                             <option value="">Select Bank</option>
                             <option value="HDFC">HDFC Bank</option>
+                            <option value="Federal Bank">Federal Bank</option>
                             <option value="AMEX">American Express</option>
                             <option value="Other">Other</option>
                         </select>
@@ -399,6 +403,10 @@
         } else if (bank === 'HDFC' && accountType === 'savings') {
             accountNameSelect.innerHTML += `
                 <option value="HDFC Savings Account">HDFC Savings Account</option>
+            `;
+        } else if (bank === 'Federal Bank' && accountType === 'savings') {
+            accountNameSelect.innerHTML += `
+                <option value="Federal Bank Savings Account">Federal Bank Savings Account</option>
             `;
         } else if (bank === 'AMEX' && accountType === 'credit_card') {
             accountNameSelect.innerHTML += `

@@ -1,6 +1,11 @@
+"""
+Federal Bank statement parser package
+"""
+
 from .hdfc_credit_card import extract_hdfc_credit_card, detect_hdfc_credit_card
 from .hdfc_savings import extract_hdfc_savings, detect_hdfc_savings 
 from .generic import extract_generic_transactions
+from .federal_bank_parser import extract_federal_bank_savings, detect_federal_bank_savings
 
 # Main function to determine parser and extract transactions
 def extract_transactions_from_file(file_path, bank=None, account_type=None, account_name=None):
@@ -60,6 +65,12 @@ def extract_transactions_from_file(file_path, bank=None, account_type=None, acco
                 account_type = "savings"
                 account_name = "HDFC Savings Account"
                 print(f"Auto-detected statement type: HDFC Savings Account")
+            # Check for Federal Bank Savings Account
+            elif detect_federal_bank_savings(file_path):
+                bank = "Federal Bank"
+                account_type = "savings"
+                account_name = "Federal Bank Savings Account"
+                print(f"Auto-detected statement type: Federal Bank Savings Account")
             # Add more detectors here for additional banks and account types
         
         # Use the appropriate parser based on bank and account type
@@ -69,6 +80,9 @@ def extract_transactions_from_file(file_path, bank=None, account_type=None, acco
         elif bank == "HDFC" and account_type == "savings":
             print(f"Using HDFC Savings parser")
             return extract_hdfc_savings(file_path)
+        elif bank == "Federal Bank" and account_type == "savings":
+            print(f"Using Federal Bank Savings parser")
+            return extract_federal_bank_savings(file_path)
         else:
             # Generic PDF extraction as fallback
             print(f"Using generic PDF parser as fallback")
