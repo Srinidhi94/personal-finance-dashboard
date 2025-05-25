@@ -2,10 +2,40 @@ import os
 import pytest
 from unittest.mock import MagicMock
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_data_dir():
     """Return the path to the test data directory"""
-    return os.path.join(os.path.dirname(__file__), "data")
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    os.makedirs(data_dir, exist_ok=True)
+    return data_dir
+
+@pytest.fixture(scope="session")
+def uploads_dir():
+    """Create and return the uploads directory"""
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+    os.makedirs(uploads_dir, exist_ok=True)
+    return uploads_dir
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_files(uploads_dir, mock_pdf_text):
+    """Create sample test files in the uploads directory"""
+    # Create Federal Bank sample
+    federal_path = os.path.join(uploads_dir, "Federal_Bank_Statement.pdf")
+    with open(federal_path, 'w') as f:
+        f.write(mock_pdf_text)
+    
+    # Create HDFC sample
+    hdfc_path = os.path.join(uploads_dir, "Statement_Example.pdf")
+    with open(hdfc_path, 'w') as f:
+        f.write(mock_pdf_text)
+    
+    yield
+    
+    # Cleanup
+    if os.path.exists(federal_path):
+        os.remove(federal_path)
+    if os.path.exists(hdfc_path):
+        os.remove(hdfc_path)
 
 @pytest.fixture
 def mock_pdf_text():

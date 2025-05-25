@@ -32,6 +32,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e ".[test]"
     
+    - name: Create test directories
+      run: |
+        mkdir -p uploads
+        mkdir -p tests/data
+        mkdir -p tests/test_results
+    
     - name: Run tests
       run: |
         python -m pytest tests/ -v --cov=parsers --cov-report=xml

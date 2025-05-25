@@ -62,21 +62,26 @@ def test_extract_transactions(mock_pdf_doc):
         transactions = extract_federal_bank_savings("test.pdf")
         
         assert isinstance(transactions, list)
-        assert len(transactions) == 3  # Opening balance + 2 transactions
+        assert len(transactions) == 4  # Opening balance + 3 transactions
         
         # Check opening balance
         assert transactions[0]["type"] == "balance"
         assert transactions[0]["balance"] == 10000.00
         
-        # Check credit transaction
+        # Check first transaction (UPI credit)
         assert transactions[1]["type"] == "credit"
         assert transactions[1]["amount"] == 5000.00
         assert transactions[1]["balance"] == 15000.00
         
-        # Check debit transaction
+        # Check second transaction (POS debit)
         assert transactions[2]["type"] == "debit"
         assert transactions[2]["amount"] == -1500.00
         assert transactions[2]["balance"] == 13500.00
+        
+        # Check third transaction (NEFT credit)
+        assert transactions[3]["type"] == "credit"
+        assert transactions[3]["amount"] == 50000.00
+        assert transactions[3]["balance"] == 63500.00
 
 def test_transaction_patterns():
     """Test recognition of different transaction patterns"""

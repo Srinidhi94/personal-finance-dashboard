@@ -89,14 +89,23 @@ def test_hdfc_parser():
     Pytest compatible test for the HDFC parser
     """
     transactions = run_parser_test('uploads/Statement_Example.pdf', verbose=False)
-    assert len(transactions) > 0
+    assert len(transactions) > 0, "No transactions found"
+    
     # Check that we have both credits and debits
-    credits = sum(1 for tx in transactions if tx['amount'] > 0)
-    debits = sum(1 for tx in transactions if tx['amount'] < 0)
-    assert credits > 0, "No credit transactions found"
-    assert debits > 0, "No debit transactions found"
+    credits = [tx for tx in transactions if tx['amount'] > 0]
+    debits = [tx for tx in transactions if tx['amount'] < 0]
     
+    assert len(credits) > 0, "No credit transactions found"
+    assert len(debits) > 0, "No debit transactions found"
     
+    # Verify transaction structure
+    for tx in transactions:
+        assert "date" in tx, "Transaction missing date"
+        assert "description" in tx, "Transaction missing description"
+        assert "amount" in tx, "Transaction missing amount"
+        assert "type" in tx, "Transaction missing type"
+        assert "balance" in tx, "Transaction missing balance"
+
 def main():
     """
     Main entry point for the parser test script
