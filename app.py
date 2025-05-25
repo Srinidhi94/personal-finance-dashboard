@@ -1,5 +1,6 @@
 import os
 import json
+import argparse
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template, redirect, url_for, send_file, send_from_directory
 from werkzeug.utils import secure_filename
@@ -136,7 +137,7 @@ def allowed_file(filename):
 
 def categorize_transaction(description, amount=None, is_debit=None):
     """Categorize a transaction based on its description and amount"""
-    description = description.lower() if description else ""
+    description = (description or "").lower()
     
     # If it's a deposit (positive amount), categorize as income
     if amount is not None and amount > 0:
@@ -177,7 +178,7 @@ def categorize_transaction(description, amount=None, is_debit=None):
 
 def categorize_subcategory(description, category):
     """Determine the subcategory based on description and main category"""
-    description = description.lower()
+    description = (description or "").lower()
     
     # Check if category exists in our structure
     if category not in CATEGORIES:
@@ -679,4 +680,9 @@ def bulk_update_categories():
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    parser = argparse.ArgumentParser(description='Personal Finance Dashboard')
+    parser.add_argument('--port', type=int, default=5000, help='Port to run the server on')
+    args = parser.parse_args()
+    
+    print(f"[DEBUG] Starting server on port {args.port}")
+    app.run(host='0.0.0.0', port=args.port, debug=True)
