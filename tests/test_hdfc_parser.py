@@ -3,125 +3,100 @@
 HDFC Bank Statement Parser Test
 
 This script tests the HDFC parser implementations to verify they correctly
-parse transactions and properly identify deposits and withdrawals.
+parse transactions and properly identify deposits and withdrawals based on
+reference numbers and balance changes.
 """
 
-import json
-import sys
-import os
-import argparse
+import pytest
+from unittest.mock import patch, MagicMock
 from datetime import datetime
 
-# Add the parent directory to the path to import the parsers module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from parsers.hdfc_savings import (
+    detect_hdfc_savings,
+    extract_hdfc_savings,
+    parse_date,
+    extract_statement_metadata
+)
 
-from parsers import extract_transactions_from_file
-from parsers.hdfc_savings import extract_hdfc_savings
-
-def run_parser_test(pdf_path, output_file=None, verbose=False):
-    """
-    Test the HDFC Savings parser with the specified PDF file
-    
-    Args:
-        pdf_path (str): Path to the PDF statement file
-        output_file (str, optional): Path to save extracted transactions as JSON
-        verbose (bool): Whether to print detailed information about transactions
+def test_detect_hdfc_savings():
+    """Test statement detection"""
+    with patch('fitz.open') as mock_open:
+        # Set up mock for valid statement
+        mock_doc = MagicMock()
+        mock_page = MagicMock()
+        mock_page.get_text.return_value = """
+        HDFC BANK
+        Statement of account
+        Account No: 50100123456789
+        000008308912572
+        """
+        mock_doc.__getitem__.return_value = mock_page
+        mock_open.return_value = mock_doc
         
-    Returns:
-        list: Extracted transactions
-    """
-    print(f"Testing bank statement parser...")
-    print(f"Processing {pdf_path}...")
+        assert detect_hdfc_savings("valid.pdf") == True
+        
+        # Test with invalid statement
+        mock_page.get_text.return_value = "Not an HDFC Bank statement"
+        assert detect_hdfc_savings("invalid.pdf") == False
+        
+        # Test with file error
+        mock_open.side_effect = Exception("File error")
+        assert detect_hdfc_savings("error.pdf") == False
 
-    # Extract transactions using the parser
-    transactions = extract_hdfc_savings(pdf_path)
+def test_parse_date():
+    """Test date parsing function"""
+    # Test DD/MM/YY format
+    assert parse_date("01/05/25") == "01/05/2025"
+    
+    # Test invalid date
+    assert parse_date("invalid") is None
 
-    # Count credits and debits
-    credit_count = 0
-    debit_count = 0
-    for tx in transactions:
-        if tx['amount'] > 0:
-            credit_count += 1
-            if verbose:
-                print(f"CREDIT: {tx['date']} - {tx['description'][:40]} - Amount: {tx['amount']} - Balance: {tx['balance']}")
-        else:
-            debit_count += 1
-            if verbose:
-                print(f"DEBIT: {tx['date']} - {tx['description'][:40]} - Amount: {tx['amount']} - Balance: {tx['balance']}")
+def test_extract_statement_metadata(mock_hdfc_doc):
+    """Test metadata extraction"""
+    metadata = extract_statement_metadata(mock_hdfc_doc)
+    
+    assert isinstance(metadata, dict)
+    assert metadata["account_holder"] == "SRINIDH R"
+    assert metadata["account_num"] == "50100123456789"
+    assert metadata["branch"] == "HENNUR ROAD"
+    assert metadata["opening_balance"] == 10000.00
+    assert metadata["closing_balance"] == 82693.00
 
-    # Show summary
-    print(f"\nTotal transactions: {len(transactions)}")
-    print(f"Credits (deposits): {credit_count}")
-    print(f"Debits (withdrawals): {debit_count}")
+def test_extract_transactions(mock_hdfc_doc):
+    """Test transaction extraction"""
+    with patch('fitz.open', return_value=mock_hdfc_doc):
+        transactions = extract_hdfc_savings("test.pdf")
+        
+        assert isinstance(transactions, list)
+        assert len(transactions) == 9  # Opening balance + 8 transactions
+        
+        # Check opening balance
+        assert transactions[0]["type"] == "balance"
+        assert transactions[0]["balance"] == 10000.00
+        assert transactions[0]["amount"] == 0
+        
+        # Check first transaction
+        assert transactions[1]["date"] == "10/05/2025"
+        assert transactions[1]["reference"] == "000008308912572"
+        assert transactions[1]["description"] == "ACH D-ZERODHA BROKING"
+        assert transactions[1]["amount"] == 4500.00
+        assert transactions[1]["balance"] == 14500.00
+        assert transactions[1]["type"] == "credit"
+        
+        # Check last transaction
+        assert transactions[-1]["date"] == "12/05/2025"
+        assert transactions[-1]["reference"] == "000008308258310"
+        assert transactions[-1]["description"] == "ACH D-ZERODHA BROKING"
+        assert transactions[-1]["amount"] == 6500.00
+        assert transactions[-1]["balance"] == 82693.00
+        assert transactions[-1]["type"] == "credit"
 
-    # Save to JSON if requested
-    if output_file:
-        with open(output_file, "w") as f:
-            json.dump(transactions, f, indent=2)
-        print(f"Saved transactions to {output_file}")
-    
-    return transactions
-
-def update_transaction_database(transactions, output_file='data/transactions.json', backup=True):
-    """
-    Update the transaction database with new transactions
-    
-    Args:
-        transactions (list): List of transactions to add to the database
-        output_file (str): Path to the transaction database file
-        backup (bool): Whether to create a backup before updating
-    """
-    # Create backup of existing transactions file
-    if backup and os.path.exists(output_file):
-        backup_file = f"{output_file}.backup"
-        import shutil
-        shutil.copy2(output_file, backup_file)
-        print(f"Created backup of transaction database at {backup_file}")
-    
-    # Save transactions to output file
-    with open(output_file, "w") as f:
-        json.dump(transactions, f, indent=2)
-    
-    print(f"Updated transaction database at {output_file} with {len(transactions)} transactions")
-
-def test_hdfc_parser():
-    """
-    Pytest compatible test for the HDFC parser
-    """
-    transactions = run_parser_test('uploads/Statement_Example.pdf', verbose=False)
-    assert len(transactions) > 0, "No transactions found"
-    
-    # Check that we have both credits and debits
-    credits = [tx for tx in transactions if tx['amount'] > 0]
-    debits = [tx for tx in transactions if tx['amount'] < 0]
-    
-    assert len(credits) > 0, "No credit transactions found"
-    assert len(debits) > 0, "No debit transactions found"
-    
-    # Verify transaction structure
-    for tx in transactions:
-        assert "date" in tx, "Transaction missing date"
-        assert "description" in tx, "Transaction missing description"
-        assert "amount" in tx, "Transaction missing amount"
-        assert "type" in tx, "Transaction missing type"
-        assert "balance" in tx, "Transaction missing balance"
-
-def main():
-    """
-    Main entry point for the parser test script
-    """
-    parser = argparse.ArgumentParser(description='Test bank statement parsers')
-    parser.add_argument('pdf_file', help='Path to the bank statement PDF file to parse')
-    parser.add_argument('--output', '-o', help='Path to save the parsed transactions as JSON')
-    parser.add_argument('--update-db', '-u', action='store_true', help='Update the transaction database')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Print detailed transaction information')
-    
-    args = parser.parse_args()
-    
-    transactions = run_parser_test(args.pdf_file, args.output, args.verbose)
-    
-    if args.update_db:
-        update_transaction_database(transactions)
-
-if __name__ == "__main__":
-    main()
+@pytest.fixture
+def mock_hdfc_doc(mock_hdfc_text):
+    """Mock HDFC PDF document"""
+    mock_doc = MagicMock()
+    mock_page = MagicMock()
+    mock_page.get_text.return_value = mock_hdfc_text
+    mock_doc.__getitem__.return_value = mock_page
+    mock_doc.__len__.return_value = 1
+    return mock_doc
