@@ -1,7 +1,7 @@
 from .hdfc_credit_card import extract_hdfc_credit_card, detect_hdfc_credit_card
 from .hdfc_savings import extract_hdfc_savings, detect_hdfc_savings 
 from .generic import extract_generic_transactions
-from .federal_bank import extract_federal_bank_savings, detect_federal_bank_savings
+from .federal_bank_parser import extract_federal_bank_savings, detect_federal_bank_savings
 
 # Main function to determine parser and extract transactions
 def extract_transactions_from_file(file_path, bank=None, account_type=None, account_name=None):
