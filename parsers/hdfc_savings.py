@@ -177,9 +177,10 @@ def extract_transactions(doc, metadata):
                 continue
             
             # Look for transaction date (DD/MM/YY)
-            date_match = re.match(r'(\d{2}/\d{2}/\d{2})$', line)
+            date_match = re.match(r'(\d{2}/\d{2}/\d{2})', line)  # Removed $ anchor
             if date_match:
                 date = parse_date(date_match.group(1))
+                print(f"[DEBUG] Found date: {date}")
                 
                 # Look for reference number in next line
                 if i + 1 < len(lines):
@@ -187,15 +188,18 @@ def extract_transactions(doc, metadata):
                     ref_match = re.match(r'(\d{12}\d*)', ref_line)
                     if ref_match:
                         reference = ref_match.group(1)  # Keep the full reference number
+                        print(f"[DEBUG] Found reference: {reference}")
                         
                         # Look for description in next line
                         if i + 2 < len(lines):
                             description = lines[i + 2].strip()
+                            print(f"[DEBUG] Found description: {description}")
                             
                             # Look for amount and balance in next lines
                             if i + 3 < len(lines) and i + 4 < len(lines):
                                 amount_str = lines[i + 3].strip().replace(',', '')
                                 balance_str = lines[i + 4].strip().replace(',', '')
+                                print(f"[DEBUG] Found amount: {amount_str}, balance: {balance_str}")
                                 
                                 try:
                                     amount = float(amount_str)
@@ -215,10 +219,12 @@ def extract_transactions(doc, metadata):
                                         "type": "credit" if is_credit else "debit",
                                         "balance": balance
                                     })
+                                    print(f"[DEBUG] Added transaction: {transactions[-1]}")
                                     
                                     i += 4  # Skip processed lines
                                     continue
                                 except ValueError:
+                                    print(f"[DEBUG] Error parsing amount/balance: {amount_str}, {balance_str}")
                                     pass
             
             i += 1
