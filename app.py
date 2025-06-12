@@ -62,7 +62,7 @@ def register_routes(app):
             ]
             
             account_types = ['Savings Account', 'Credit Card']
-            banks = ['HDFC', 'Federal Bank']
+            banks = ['HDFC Bank', 'Federal Bank']
             
             return render_template('index.html', 
                                  summary=summary,
@@ -104,7 +104,7 @@ def register_routes(app):
             ]
             
             account_types = ['Savings Account', 'Credit Card']
-            banks = ['HDFC', 'Federal Bank']
+            banks = ['HDFC Bank', 'Federal Bank']
             
             # Get filter parameters
             category_filter = request.args.get('category')
