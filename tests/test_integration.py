@@ -39,7 +39,7 @@ class TestCompleteWorkflows:
         with client.application.app_context():
             account = AccountService.get_or_create_account(
                 name='Test Savings',
-                bank='HDFC',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             account_id = account.id
@@ -109,8 +109,8 @@ class TestCompleteWorkflows:
         with client.application.app_context():
             # Create accounts
             hdfc_savings = AccountService.get_or_create_account(
-                name='HDFC Savings',
-                bank='HDFC',
+                name='HDFC Bank Savings',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             
@@ -174,7 +174,7 @@ class TestCompleteWorkflows:
         assert b'Salary Credit' not in response.data
         
         # Test 2: Filter by bank
-        response = client.get('/transactions?bank=HDFC')
+        response = client.get('/transactions?bank=HDFC Bank')
         assert response.status_code == 200
         assert b'Grocery Shopping' in response.data
         assert b'Salary Credit' in response.data
@@ -195,7 +195,7 @@ class TestCompleteWorkflows:
         assert b'Gas Station' not in response.data
         
         # Test 5: Multiple filters
-        response = client.get('/transactions?category=Food&bank=HDFC&date_from=2024-01-01&date_to=2024-01-31')
+        response = client.get('/transactions?category=Food&bank=HDFC Bank&date_from=2024-01-01&date_to=2024-01-31')
         assert response.status_code == 200
         assert b'Grocery Shopping' in response.data
         assert b'Restaurant Bill' not in response.data
@@ -207,7 +207,7 @@ class TestCompleteWorkflows:
         with client.application.app_context():
             account = AccountService.get_or_create_account(
                 name='Test Account',
-                bank='HDFC',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             
@@ -269,7 +269,7 @@ class TestServiceIntegration:
             # Create account first
             account = AccountService.get_or_create_account(
                 name='Test Account',
-                bank='HDFC',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             
@@ -312,19 +312,19 @@ class TestServiceIntegration:
             # Test account creation
             account = AccountService.get_or_create_account(
                 name='Test Savings',
-                bank='HDFC',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             
             assert account is not None
             assert account.name == 'Test Savings'
-            assert account.bank == 'HDFC'
+            assert account.bank == 'HDFC Bank'
             assert account.account_type == 'Savings Account'
             
             # Test get_or_create returns existing account
             same_account = AccountService.get_or_create_account(
                 name='Test Savings',
-                bank='HDFC',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             
@@ -407,7 +407,7 @@ class TestDataConsistency:
             # Create account
             account = AccountService.get_or_create_account(
                 name='Consistency Test Account',
-                bank='HDFC',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             
@@ -429,7 +429,7 @@ class TestDataConsistency:
             
             # Verify transaction has correct account information
             transaction_data = json.loads(response.data)
-            assert transaction_data['bank'] == 'HDFC'
+            assert transaction_data['bank'] == 'HDFC Bank'
             assert transaction_data['account_type'] == 'Savings Account'
             assert transaction_data['account_name'] == 'Consistency Test Account'
     
@@ -438,7 +438,7 @@ class TestDataConsistency:
         with client.application.app_context():
             account = AccountService.get_or_create_account(
                 name='Tag Test Account',
-                bank='HDFC',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             

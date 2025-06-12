@@ -36,8 +36,8 @@ def sample_accounts(app):
     """Create sample accounts for testing."""
     with app.app_context():
         accounts = [
-            Account(name='HDFC Savings', bank='HDFC', account_type='Savings Account'),
-            Account(name='HDFC Credit Card', bank='HDFC', account_type='Credit Card'),
+            Account(name='HDFC Bank Savings', bank='HDFC Bank', account_type='Savings Account'),
+            Account(name='HDFC Bank Credit Card', bank='HDFC Bank', account_type='Credit Card'),
             Account(name='Federal Bank Savings', bank='Federal Bank', account_type='Savings Account'),
         ]
         
@@ -226,9 +226,9 @@ class TestFiltering:
     
     def test_filter_by_bank(self, client, sample_transactions):
         """Test filtering transactions by bank."""
-        response = client.get('/transactions?bank=HDFC')
+        response = client.get('/transactions?bank=HDFC Bank')
         assert response.status_code == 200
-        assert b'HDFC' in response.data
+        assert b'HDFC Bank' in response.data
     
     def test_filter_by_account_type(self, client, sample_transactions):
         """Test filtering transactions by account type."""
@@ -242,7 +242,7 @@ class TestFiltering:
     
     def test_multiple_filters(self, client, sample_transactions):
         """Test applying multiple filters simultaneously."""
-        response = client.get('/transactions?category=Food&bank=HDFC&date_from=2024-01-01')
+        response = client.get('/transactions?category=Food&bank=HDFC Bank&date_from=2024-01-01')
         assert response.status_code == 200
 
 

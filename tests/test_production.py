@@ -72,7 +72,7 @@ class TestCriticalFunctionality:
             # Create test account
             account = AccountService.get_or_create_account(
                 name='Test Account',
-                bank='HDFC',
+                bank='HDFC Bank',
                 account_type='Savings Account'
             )
             
@@ -97,7 +97,7 @@ class TestCriticalFunctionality:
         assert b'Test Food Transaction' in response.data
         
         # Test bank filter
-        response = client.get('/transactions?bank=HDFC')
+        response = client.get('/transactions?bank=HDFC Bank')
         assert response.status_code == 200
         assert b'Test Food Transaction' in response.data
 
