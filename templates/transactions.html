@@ -1313,7 +1313,8 @@ document.getElementById('addTransactionForm').addEventListener('submit', functio
         description: data.description,
         amount: amount,
         category: data.category || null,
-        transaction_type: transactionType
+        transaction_type: transactionType,
+        is_debit: transactionType === 'expense' // Set is_debit based on transaction type
     };
     
     const submitBtn = this.querySelector('button[type="submit"]');

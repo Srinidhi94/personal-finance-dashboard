@@ -11,9 +11,19 @@ class TransactionService:
     def create_transaction(data):
         """Create a new transaction"""
         try:
-            # Parse date
+            # Parse date - handle both HTML date input format (YYYY-MM-DD) and legacy format (DD/MM/YYYY)
             if isinstance(data.get('date'), str):
-                date_obj = datetime.strptime(data['date'], '%d/%m/%Y').date()
+                date_str = data['date']
+                try:
+                    # Try HTML date input format first (YYYY-MM-DD)
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    try:
+                        # Fall back to legacy format (DD/MM/YYYY)
+                        date_obj = datetime.strptime(date_str, '%d/%m/%Y').date()
+                    except ValueError:
+                        # If both fail, use current date
+                        date_obj = datetime.now().date()
             else:
                 date_obj = data.get('date', datetime.now().date())
             
@@ -49,7 +59,17 @@ class TransactionService:
             # Update basic fields
             if 'date' in data:
                 if isinstance(data['date'], str):
-                    transaction.date = datetime.strptime(data['date'], '%d/%m/%Y').date()
+                    date_str = data['date']
+                    try:
+                        # Try HTML date input format first (YYYY-MM-DD)
+                        transaction.date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            # Fall back to legacy format (DD/MM/YYYY)
+                            transaction.date = datetime.strptime(date_str, '%d/%m/%Y').date()
+                        except ValueError:
+                            # If both fail, keep current date
+                            pass
                 else:
                     transaction.date = data['date']
             
