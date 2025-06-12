@@ -355,45 +355,6 @@
         color: #dc3545;
     }
     
-    /* Edit mode inline buttons */
-    .edit-actions {
-        display: flex;
-        gap: 0.25rem;
-        align-items: center;
-    }
-    
-    .edit-actions .btn {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.875rem;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-    }
-    
-    .edit-actions .save-btn {
-        background-color: #198754;
-        border-color: #198754;
-        color: white;
-    }
-    
-    .edit-actions .save-btn:hover {
-        background-color: #157347;
-        border-color: #146c43;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .edit-actions .cancel-btn {
-        background-color: transparent;
-        border-color: #6c757d;
-        color: #6c757d;
-    }
-    
-    .edit-actions .cancel-btn:hover {
-        background-color: #6c757d;
-        border-color: #6c757d;
-        color: white;
-    }
-    
     .bulk-edit-card {
         background: white;
         border-radius: 12px;
@@ -628,8 +589,7 @@
                             </span>
                         </td>
                         <td>
-                            <!-- Normal mode: 3-dots menu -->
-                            <div class="action-dropdown normal-actions">
+                            <div class="action-dropdown">
                                 <button class="action-menu-btn" type="button">
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
@@ -637,20 +597,16 @@
                                     <div class="action-menu-item edit-btn" data-id="{{ transaction.id }}">
                                         <i class="bi bi-pencil"></i> Edit
                                     </div>
+                                    <div class="action-menu-item save-btn" data-id="{{ transaction.id }}" style="display: none;">
+                                        <i class="bi bi-check"></i> Save
+                                    </div>
+                                    <div class="action-menu-item cancel-btn" data-id="{{ transaction.id }}" style="display: none;">
+                                        <i class="bi bi-x"></i> Cancel
+                                    </div>
                                     <div class="action-menu-item danger delete-btn" data-id="{{ transaction.id }}">
                                         <i class="bi bi-trash"></i> Delete
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <!-- Edit mode: inline save/cancel buttons -->
-                            <div class="edit-actions" style="display: none;">
-                                <button class="btn btn-sm btn-success save-btn me-1" data-id="{{ transaction.id }}" title="Save changes">
-                                    <i class="bi bi-check"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-secondary cancel-btn" data-id="{{ transaction.id }}" title="Cancel editing">
-                                    <i class="bi bi-x"></i>
-                                </button>
                             </div>
                         </td>
                     </tr>
@@ -885,24 +841,13 @@ document.addEventListener('click', function(e) {
         // Handle different actions
         if (item.classList.contains('edit-btn')) {
             editTransaction(transactionId);
+        } else if (item.classList.contains('save-btn')) {
+            saveTransaction(transactionId);
+        } else if (item.classList.contains('cancel-btn')) {
+            cancelEdit(transactionId);
         } else if (item.classList.contains('delete-btn')) {
             deleteTransaction(transactionId);
         }
-        return;
-    }
-    
-    // Handle inline save/cancel button clicks
-    if (e.target.closest('.save-btn')) {
-        const btn = e.target.closest('.save-btn');
-        const transactionId = btn.dataset.id;
-        saveTransaction(transactionId);
-        return;
-    }
-    
-    if (e.target.closest('.cancel-btn')) {
-        const btn = e.target.closest('.cancel-btn');
-        const transactionId = btn.dataset.id;
-        cancelEdit(transactionId);
         return;
     }
     
@@ -1032,23 +977,18 @@ function editTransaction(transactionId) {
     const descEdit = row.querySelector('.description-edit');
     const tagsDisplay = row.querySelector('.tags-display');
     const tagsEdit = row.querySelector('.tags-edit');
-    const normalActions = row.querySelector('.normal-actions');
-    const editActions = row.querySelector('.edit-actions');
+    const editBtn = row.querySelector('.edit-btn');
+    const saveBtn = row.querySelector('.save-btn');
+    const cancelBtn = row.querySelector('.cancel-btn');
     
     // Switch to edit mode for both description and tags
     descDisplay.style.display = 'none';
     descEdit.style.display = 'block';
     tagsDisplay.style.display = 'none';
     tagsEdit.style.display = 'block';
-    
-    // Switch action buttons
-    normalActions.style.display = 'none';
-    editActions.style.display = 'flex';
-    
-    // Close any open action menus
-    document.querySelectorAll('.action-menu.show').forEach(menu => {
-        menu.classList.remove('show');
-    });
+    editBtn.style.display = 'none';
+    saveBtn.style.display = 'flex';
+    cancelBtn.style.display = 'flex';
 }
 
 function saveTransaction(transactionId) {
@@ -1137,18 +1077,18 @@ function exitEditMode(row) {
     const descEdit = row.querySelector('.description-edit');
     const tagsDisplay = row.querySelector('.tags-display');
     const tagsEdit = row.querySelector('.tags-edit');
-    const normalActions = row.querySelector('.normal-actions');
-    const editActions = row.querySelector('.edit-actions');
+    const editBtn = row.querySelector('.edit-btn');
+    const saveBtn = row.querySelector('.save-btn');
+    const cancelBtn = row.querySelector('.cancel-btn');
     
     // Switch back to display mode for both description and tags
     descDisplay.style.display = 'block';
     descEdit.style.display = 'none';
     tagsDisplay.style.display = 'flex';
     tagsEdit.style.display = 'none';
-    
-    // Switch action buttons back
-    normalActions.style.display = 'block';
-    editActions.style.display = 'none';
+    editBtn.style.display = 'flex';
+    saveBtn.style.display = 'none';
+    cancelBtn.style.display = 'none';
     
     // Close any open tag dropdowns
     document.querySelectorAll('.tag-dropdown').forEach(dropdown => {
