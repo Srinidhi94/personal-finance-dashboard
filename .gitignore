@@ -99,3 +99,26 @@ tests/test_results/*
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Production specific
+*.backup
+archive/
+.env
+personal_finance.db
+
+# Docker
+.dockerignore
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/tfplan
+
+# AWS
+.aws/credentials
+
+# IDE
+.vscode/
+.idea/
+

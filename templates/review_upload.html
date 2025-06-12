@@ -1,0 +1,702 @@
+{% extends "base.html" %}
+
+{% block title %}Review Uploaded Transactions{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .review-container {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .review-header {
+        background: white;
+        border-radius: 10px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: none;
+    }
+    
+    .review-header h1 {
+        color: #333;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        font-size: 1.75rem;
+    }
+    
+    .review-header p {
+        color: #6c757d;
+        margin-bottom: 0;
+        font-size: 1rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+    
+    .btn-subtle {
+        background-color: white;
+        border: 1px solid #dee2e6;
+        color: #495057;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-subtle:hover {
+        background-color: #f8f9fa;
+        border-color: #adb5bd;
+        color: #343a40;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .btn-primary-subtle {
+        background-color: #3498db;
+        border: 1px solid #3498db;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-primary-subtle:hover {
+        background-color: #2980b9;
+        border-color: #2980b9;
+        box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+    }
+    
+    .transactions-card {
+        background: white;
+        border-radius: 10px;
+        border: none;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .transactions-header {
+        background-color: #fff;
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        font-weight: 600;
+    }
+    
+    .transactions-header h2 {
+        color: #333;
+        font-weight: 600;
+        font-size: 1.25rem;
+        margin: 0;
+    }
+    
+    .transactions-table {
+        width: 100%;
+        margin: 0;
+    }
+    
+    .transactions-table th {
+        background-color: #fff;
+        color: #666;
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        padding: 0.75rem 1.5rem;
+        border-top: none;
+        border-bottom: 2px solid #eaeaea;
+    }
+    
+    .transactions-table td {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #f2f2f2;
+        vertical-align: middle;
+    }
+    
+    .transactions-table tbody tr:hover {
+        background-color: rgba(52, 152, 219, 0.05);
+    }
+    
+    .description-field {
+        border: 1px solid #dfe6e9;
+        background: white;
+        font-size: 0.9rem;
+        color: #333;
+        padding: 0.65rem 1rem;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        width: 100%;
+        min-width: 200px;
+    }
+    
+    .description-field:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+    }
+    
+    .tag-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.375rem;
+        align-items: center;
+    }
+    
+    .tag-chip {
+        background-color: rgba(52, 152, 219, 0.15);
+        color: #2980b9;
+        padding: 0.25rem 0.75rem;
+        border-radius: 16px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+        transition: all 0.2s ease;
+    }
+    
+    .tag-chip.account-type {
+        background-color: rgba(46, 204, 113, 0.15);
+        color: #27ae60;
+        border-color: rgba(46, 204, 113, 0.3);
+    }
+    
+    .tag-chip .remove-btn {
+        background: none;
+        border: none;
+        color: inherit;
+        font-size: 0.75rem;
+        cursor: pointer;
+        padding: 0;
+        margin: 0;
+        width: 14px;
+        height: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+    }
+    
+    .tag-chip .remove-btn:hover {
+        background-color: rgba(0,0,0,0.1);
+    }
+    
+    .add-tag-btn {
+        background-color: #f8f9fa;
+        border: 1px dashed #adb5bd;
+        color: #6c757d;
+        padding: 0.25rem 0.5rem;
+        border-radius: 16px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .add-tag-btn:hover {
+        background-color: #e9ecef;
+        border-color: #6c757d;
+        color: #495057;
+    }
+    
+    .tag-dropdown {
+        position: absolute;
+        background: white;
+        border: 1px solid #dfe6e9;
+        border-radius: 8px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        min-width: 180px;
+    }
+    
+    .tag-dropdown-item {
+        padding: 0.75rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        color: #333;
+        border-bottom: 1px solid #f2f2f2;
+        transition: all 0.2s ease;
+    }
+    
+    .tag-dropdown-item:hover {
+        background-color: rgba(52, 152, 219, 0.05);
+        color: #3498db;
+    }
+    
+    .tag-dropdown-item:last-child {
+        border-bottom: none;
+    }
+    
+    .amount-positive {
+        color: #27ae60;
+        font-weight: 600;
+    }
+    
+    .amount-negative {
+        color: #e74c3c;
+        font-weight: 600;
+    }
+    
+    .bank-badge {
+        background-color: rgba(52, 152, 219, 0.15);
+        color: #2980b9;
+        padding: 0.5em 0.8em;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+    }
+    
+    .action-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .action-menu-btn {
+        background: none;
+        border: none;
+        color: #6c757d;
+        padding: 0.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 1rem;
+    }
+    
+    .action-menu-btn:hover {
+        background-color: #f8f9fa;
+        color: #495057;
+    }
+    
+    .action-menu {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: white;
+        border: 1px solid #dfe6e9;
+        border-radius: 8px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        min-width: 120px;
+        z-index: 1000;
+        display: none;
+    }
+    
+    .action-menu.show {
+        display: block;
+    }
+    
+    .action-menu-item {
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        color: #333;
+        border-bottom: 1px solid #f2f2f2;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .action-menu-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .action-menu-item:last-child {
+        border-bottom: none;
+    }
+    
+    .action-menu-item.danger:hover {
+        background-color: rgba(231, 76, 60, 0.15);
+        color: #e74c3c;
+    }
+    
+    .stats-row {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .stat-item {
+        background: white;
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: none;
+        flex: 1;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .stat-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="review-container">
+    <!-- Header -->
+    <div class="review-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>Review Uploaded Transactions</h1>
+                <p><strong>{{ transactions|length }}</strong> transactions extracted from your Federal Bank statement</p>
+            </div>
+            <div class="action-buttons">
+                <button class="btn-subtle" onclick="window.location.href='{{ url_for('transactions') }}'">
+                    <i class="bi bi-arrow-left me-2"></i>Cancel
+                </button>
+                <button class="btn-primary-subtle" id="saveAllBtn">
+                    <i class="bi bi-check-circle me-2"></i>Save All Transactions
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-row">
+        <div class="stat-item">
+            <div class="stat-value">{{ transactions|length }}</div>
+            <div class="stat-label">Total Transactions</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value amount-positive">
+                ₹{{ "%.0f"|format(transactions|selectattr('amount', '>', 0)|map(attribute='amount')|sum) }}
+            </div>
+            <div class="stat-label">Income</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value amount-negative">
+                ₹{{ "%.0f"|format(transactions|selectattr('amount', '<', 0)|map(attribute='amount')|map('abs')|sum) }}
+            </div>
+            <div class="stat-label">Expenses</div>
+        </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="transactions-card">
+        <div class="transactions-header">
+            <h2>Transaction Details</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="transactions-table table">
+                <thead>
+                    <tr>
+                        <th style="width: 12%">Date</th>
+                        <th style="width: 30%">Description</th>
+                        <th style="width: 25%">Tags</th>
+                        <th style="width: 15%">Bank</th>
+                        <th style="width: 12%">Amount</th>
+                        <th style="width: 6%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in transactions %}
+                    <tr data-index="{{ loop.index0 }}">
+                        <td>{{ transaction.date }}</td>
+                        <td>
+                            <input type="text" 
+                                   class="description-field" 
+                                   value="{{ transaction.description }}"
+                                   data-field="description"
+                                   data-index="{{ loop.index0 }}">
+                        </td>
+                        <td>
+                            <div class="tag-container" data-index="{{ loop.index0 }}">
+                                {% set initial_category = transaction.get('category', 'Other') %}
+                                {% set account_type = transaction.get('account_type', 'Savings Account') %}
+                                
+                                <span class="tag-chip" data-type="category" data-value="{{ initial_category }}">
+                                    {{ initial_category }}
+                                    <button class="remove-btn" type="button">&times;</button>
+                                </span>
+                                
+                                <span class="tag-chip account-type" data-type="account_type" data-value="{{ account_type }}">
+                                    {{ account_type }}
+                                    <button class="remove-btn" type="button">&times;</button>
+                                </span>
+                                
+                                <button class="add-tag-btn" type="button">
+                                    <i class="bi bi-plus"></i> Add tag
+                                </button>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="bank-badge">{{ transaction.get('bank', 'Federal Bank') }}</span>
+                        </td>
+                        <td>
+                            <span class="{% if transaction.amount >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                                {% if transaction.amount >= 0 %}
+                                    +₹{{ "%.2f"|format(transaction.amount) }}
+                                {% else %}
+                                    -₹{{ "%.2f"|format(transaction.amount|abs) }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-dropdown">
+                                <button class="action-menu-btn" type="button">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <div class="action-menu">
+                                    <div class="action-menu-item" onclick="editTransaction({{ loop.index0 }})">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </div>
+                                    <div class="action-menu-item danger" onclick="removeTransaction({{ loop.index0 }})">
+                                        <i class="bi bi-trash"></i> Remove
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Store transactions data
+let transactions = {{ transactions|tojson }};
+
+// Available tags
+const availableTags = {
+    expense: ['Food', 'Gifts', 'Health/medical', 'Home', 'Transportation', 'Personal', 'Pets', 'Family', 'Travel', 'Debt', 'Other', 'Rent', 'Credit Card', 'Alcohol', 'Consumables', 'Investments'],
+    income: ['Savings', 'Paycheck', 'Bonus', 'Interest', 'Splitwise', 'RSU'],
+    account_type: ['Savings Account', 'Credit Card']
+};
+
+// Action menu handling
+document.addEventListener('click', function(e) {
+    // Handle action menu toggle
+    if (e.target.closest('.action-menu-btn')) {
+        e.stopPropagation();
+        const menu = e.target.closest('.action-dropdown').querySelector('.action-menu');
+        
+        // Close all other menus
+        document.querySelectorAll('.action-menu.show').forEach(m => {
+            if (m !== menu) m.classList.remove('show');
+        });
+        
+        menu.classList.toggle('show');
+        return;
+    }
+    
+    // Handle tag removal
+    if (e.target.classList.contains('remove-btn')) {
+        removeTag(e.target);
+        return;
+    }
+    
+    // Handle add tag button
+    if (e.target.closest('.add-tag-btn')) {
+        showTagDropdown(e.target.closest('.add-tag-btn'));
+        return;
+    }
+    
+    // Close all menus when clicking outside
+    document.querySelectorAll('.action-menu.show').forEach(menu => {
+        menu.classList.remove('show');
+    });
+    
+    // Close tag dropdowns when clicking outside
+    document.querySelectorAll('.tag-dropdown').forEach(dropdown => {
+        dropdown.remove();
+    });
+});
+
+function showTagDropdown(button) {
+    const container = button.parentElement;
+    const index = container.dataset.index;
+    
+    // Remove existing dropdown
+    document.querySelectorAll('.tag-dropdown').forEach(d => d.remove());
+    
+    // Create dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'tag-dropdown';
+    dropdown.style.position = 'absolute';
+    dropdown.style.top = (button.offsetTop + button.offsetHeight + 5) + 'px';
+    dropdown.style.left = button.offsetLeft + 'px';
+    
+    // Get existing tags
+    const existingTags = Array.from(container.querySelectorAll('.tag-chip'))
+        .map(tag => tag.dataset.value);
+    
+    // Add all available tags
+    const allTags = [...availableTags.expense, ...availableTags.income, ...availableTags.account_type];
+    allTags.forEach(tag => {
+        if (!existingTags.includes(tag)) {
+            const item = document.createElement('div');
+            item.className = 'tag-dropdown-item';
+            item.textContent = tag;
+            item.onclick = () => addTag(container, tag);
+            dropdown.appendChild(item);
+        }
+    });
+    
+    container.appendChild(dropdown);
+}
+
+function addTag(container, tagValue) {
+    const index = container.dataset.index;
+    
+    // Determine tag type
+    let tagType = 'category';
+    let tagClass = 'tag-chip';
+    if (availableTags.account_type.includes(tagValue)) {
+        tagType = 'account_type';
+        tagClass = 'tag-chip account-type';
+    }
+    
+    // Create tag element
+    const tag = document.createElement('span');
+    tag.className = tagClass;
+    tag.dataset.type = tagType;
+    tag.dataset.value = tagValue;
+    tag.innerHTML = `${tagValue} <button class="remove-btn" type="button">&times;</button>`;
+    
+    // Insert before add button
+    const addButton = container.querySelector('.add-tag-btn');
+    container.insertBefore(tag, addButton);
+    
+    // Remove dropdown
+    document.querySelectorAll('.tag-dropdown').forEach(d => d.remove());
+    
+    // Update transaction data
+    updateTransactionTags(index);
+}
+
+function removeTag(removeButton) {
+    const tag = removeButton.parentElement;
+    const container = tag.parentElement;
+    const index = container.dataset.index;
+    
+    tag.remove();
+    updateTransactionTags(index);
+}
+
+function updateTransactionTags(index) {
+    const container = document.querySelector(`.tag-container[data-index="${index}"]`);
+    const tags = Array.from(container.querySelectorAll('.tag-chip'));
+    
+    // Update categories and account types
+    const categories = tags.filter(tag => tag.dataset.type === 'category')
+        .map(tag => tag.dataset.value);
+    const accountTypes = tags.filter(tag => tag.dataset.type === 'account_type')
+        .map(tag => tag.dataset.value);
+    
+    // Update transaction data
+    if (transactions[index]) {
+        transactions[index].category = categories.length > 0 ? categories[0] : 'Other';
+        transactions[index].account_type = accountTypes.length > 0 ? accountTypes[0] : 'Savings Account';
+        transactions[index].tags = {
+            categories: categories,
+            account_types: accountTypes
+        };
+    }
+}
+
+function editTransaction(index) {
+    const descriptionInput = document.querySelector(`input[data-index="${index}"]`);
+    if (descriptionInput) {
+        descriptionInput.focus();
+        descriptionInput.select();
+    }
+}
+
+function removeTransaction(index) {
+    // Remove from transactions array
+    transactions.splice(index, 1);
+    
+    // Remove table row
+    const row = document.querySelector(`tr[data-index="${index}"]`);
+    if (row) {
+        row.remove();
+    }
+    
+    // Update indices
+    updateTableIndices();
+}
+
+function updateTableIndices() {
+    const rows = document.querySelectorAll('.transactions-table tbody tr');
+    rows.forEach((row, index) => {
+        row.dataset.index = index;
+        
+        // Update all data-index attributes
+        row.querySelectorAll('[data-index]').forEach(element => {
+            element.dataset.index = index;
+        });
+    });
+}
+
+// Update transaction data when description changes
+document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('description-field')) {
+        const index = parseInt(e.target.dataset.index);
+        const field = e.target.dataset.field;
+        
+        if (transactions[index]) {
+            transactions[index][field] = e.target.value;
+        }
+    }
+});
+
+// Save all transactions
+document.getElementById('saveAllBtn').addEventListener('click', function() {
+    if (transactions.length === 0) {
+        return;
+    }
+    
+    const button = this;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Saving...';
+    
+    fetch('/api/upload/confirm', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            transactions: transactions
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '{{ url_for("transactions") }}';
+        } else {
+            throw new Error(data.error || 'Failed to save transactions');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error saving transactions: ' + error.message);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-check-circle me-2"></i>Save All Transactions';
+    });
+});
+</script>
+{% endblock %} 

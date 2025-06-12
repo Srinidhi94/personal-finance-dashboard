@@ -18,8 +18,11 @@
                 <li><a class="dropdown-item" href="#">All Time</a></li>
             </ul>
         </div>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+        <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadModal">
             <i class="bi bi-upload me-2"></i> Upload Statement
+        </button>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+            <i class="bi bi-plus-circle me-2"></i> Add Transaction
         </button>
     </div>
 </div>
@@ -29,25 +32,25 @@
     <div class="col-md-3">
         <div class="stat-card bg-white">
             <div class="stat-title">Total Transactions</div>
-            <div class="stat-value">{{ summary.total_transactions }}</div>
+            <div class="stat-value">{{ summary.total_transactions or 0 }}</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card bg-white">
             <div class="stat-title">Total Income</div>
-            <div class="stat-value">₹{{ "{:,.2f}".format(summary.total_income) }}</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.total_income or 0) }}</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card bg-white">
             <div class="stat-title">Total Expenses</div>
-            <div class="stat-value">₹{{ "{:,.2f}".format(summary.total_expenses) }}</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.total_expenses or 0) }}</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card bg-white">
             <div class="stat-title">Net Balance</div>
-            <div class="stat-value">₹{{ "{:,.2f}".format(summary.net_balance) }}</div>
+            <div class="stat-value">₹{{ "{:,.2f}".format(summary.net_balance or 0) }}</div>
         </div>
     </div>
 </div>
@@ -65,24 +68,32 @@
                         <thead>
                             <tr>
                                 <th>Account</th>
-                                <th>Bank</th>
+                                <th>Account Type</th>
                                 <th>Income</th>
                                 <th>Expenses</th>
                                 <th>Balance</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for account in summary.account_summary %}
-                            <tr>
-                                <td><span class="fw-medium">{{ account.name }}</span></td>
-                                <td><span class="badge bg-light text-dark">{{ account.bank }}</span></td>
-                                <td class="text-success">₹{{ "{:,.2f}".format(account.income) }}</td>
-                                <td class="text-danger">₹{{ "{:,.2f}".format(account.expenses) }}</td>
-                                <td class="fw-bold {% if account.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                    ₹{{ "{:,.2f}".format(account.balance) }}
-                                </td>
-                            </tr>
-                            {% endfor %}
+                            {% if summary.account_summary %}
+                                {% for account in summary.account_summary %}
+                                <tr>
+                                    <td>{{ account.bank }}</td>
+                                    <td>{{ account.name.replace(account.bank, '').strip() }}</td>
+                                    <td class="text-success">₹{{ "{:,.2f}".format(account.income) }}</td>
+                                    <td class="text-danger">₹{{ "{:,.2f}".format(account.expenses) }}</td>
+                                    <td class="{% if account.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        ₹{{ "{:,.2f}".format(account.balance) }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No account data available
+                                    </td>
+                                </tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -135,19 +146,27 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for category in summary.category_summary[:5] %}
-                            <tr>
-                                <td>{{ category.name }}</td>
-                                <td>₹{{ "{:,.2f}".format(category.total) }}</td>
-                                <td>
-                                    {% set percentage = (category.total / summary.total_expenses * 100) if summary.total_expenses > 0 else 0 %}
-                                    {{ "{:.1f}%".format(percentage) }}
-                                    <div class="progress mt-1" style="height: 4px;">
-                                        <div class="progress-bar" style="width: {{ percentage }}%"></div>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                            {% if summary.category_summary %}
+                                {% for category in summary.category_summary[:5] %}
+                                <tr>
+                                    <td>{{ category.name }}</td>
+                                    <td>₹{{ "{:,.2f}".format(category.total) }}</td>
+                                    <td>
+                                        {% set percentage = (category.total / summary.total_expenses * 100) if summary.total_expenses > 0 else 0 %}
+                                        {{ "{:.1f}%".format(percentage) }}
+                                        <div class="progress mt-1" style="height: 4px;">
+                                            <div class="progress-bar" style="width: {{ percentage }}%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        No category data available
+                                    </td>
+                                </tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -188,27 +207,38 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for tx in transactions %}
-                            <tr>
-                                <td>{{ tx.date }}</td>
-                                <td>{{ tx.description }}</td>
-                                <td>
-                                    <span class="badge bg-light text-dark">{{ tx.category }}</span>
-                                </td>
-                                <td>
-                                    <span class="badge {% if tx.bank == 'HDFC' %}bg-info{% elif tx.bank == 'Federal Bank' %}bg-success{% else %}bg-secondary{% endif %} text-white">
-                                        {{ tx.bank }}
-                                    </span>
-                                </td>
-                                <td class="{% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %}">
-                                    {% if tx.amount > 0 %}
-                                        ₹{{ "{:,.2f}".format(tx.amount) }}
-                                    {% else %}
-                                        -₹{{ "{:,.2f}".format(tx.amount|abs) }}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
+                            {% if recent_transactions %}
+                                {% for tx in recent_transactions %}
+                                <tr>
+                                    <td>{{ tx.date }}</td>
+                                    <td>{{ tx.description }}</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ tx.category or 'Miscellaneous' }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if tx.bank == 'HDFC' %}bg-info{% elif tx.bank == 'Federal Bank' %}bg-success{% else %}bg-secondary{% endif %} text-white">
+                                            {{ tx.bank or 'Unknown' }}
+                                        </span>
+                                    </td>
+                                    <td class="{% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {% if tx.amount > 0 %}
+                                            ₹{{ "{:,.2f}".format(tx.amount) }}
+                                        {% else %}
+                                            -₹{{ "{:,.2f}".format(tx.amount|abs) }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                                        No recent transactions
+                                        <br>
+                                        <small>Upload a statement or add transactions manually to get started</small>
+                                    </td>
+                                </tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -217,7 +247,91 @@
     </div>
 </div>
 
-<!-- Upload Statement Modal -->
+<!-- Add Transaction Modal -->
+<div class="modal fade" id="addTransactionModal" tabindex="-1" aria-labelledby="addTransactionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addTransactionModalLabel">Add Manual Transaction</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addTransactionForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="transaction_bank" class="form-label">Bank</label>
+                        <select class="form-select" id="transaction_bank" name="bank" required>
+                            <option value="">Select Bank</option>
+                            {% for bank in banks %}
+                            <option value="{{ bank }}">{{ bank }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_account_type" class="form-label">Account Type</label>
+                        <select class="form-select" id="transaction_account_type" name="account_type" required>
+                            <option value="">Select Account Type</option>
+                            {% for acc_type in account_types %}
+                            <option value="{{ acc_type }}">{{ acc_type }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="transaction_date" name="date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="transaction_description" name="description" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Transaction Type</label>
+                        <div class="btn-group w-100" role="group" aria-label="Transaction type">
+                            <input type="radio" class="btn-check" name="transaction_type" id="type_income" value="income" autocomplete="off">
+                            <label class="btn btn-outline-success" for="type_income">
+                                <i class="bi bi-plus-circle me-2"></i>Income
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="transaction_type" id="type_expense" value="expense" autocomplete="off" checked>
+                            <label class="btn btn-outline-danger" for="type_expense">
+                                <i class="bi bi-dash-circle me-2"></i>Expense
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_amount" class="form-label">Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">₹</span>
+                            <input type="number" step="0.01" min="0" class="form-control" id="transaction_amount" name="amount" required placeholder="0.00">
+                        </div>
+                        <div class="form-text">Enter the amount (always positive)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_category" class="form-label">Category</label>
+                        <select class="form-select" id="transaction_category" name="category">
+                            <option value="">Auto-categorize</option>
+                            <optgroup label="Income Categories" id="income_categories_group" style="display: none;">
+                                {% for category in income_categories %}
+                                <option value="{{ category }}">{{ category }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="Expense Categories" id="expense_categories_group">
+                                {% for category in expense_categories %}
+                                <option value="{{ category }}">{{ category }}</option>
+                                {% endfor %}
+                            </optgroup>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Transaction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -225,32 +339,37 @@
                 <h5 class="modal-title">Upload Bank Statement</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <form action="/upload" method="post" enctype="multipart/form-data">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="modal-body">
                     <div class="mb-3">
                         <label for="bank" class="form-label">Bank</label>
-                        <select class="form-select" id="bank" name="bank">
-                            <option value="HDFC">HDFC Bank</option>
-                            <option value="Federal Bank">Federal Bank</option>
-                            <option value="Other">Other</option>
+                        <select class="form-select" id="bank" name="bank" required>
+                            <option value="">Select Bank</option>
+                            {% for bank in banks %}
+                            <option value="{{ bank }}">{{ bank }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
                         <label for="account_type" class="form-label">Account Type</label>
-                        <select class="form-select" id="account_type" name="account_type">
-                            <option value="savings">Savings Account</option>
-                            <option value="credit_card">Credit Card</option>
+                        <select class="form-select" id="account_type" name="account_type" required>
+                            <option value="">Select Account Type</option>
+                            {% for acc_type in account_types %}
+                            <option value="{{ acc_type }}">{{ acc_type }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="file" class="form-label">Statement File</label>
-                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.csv,.txt">
+                        <label for="file" class="form-label">Bank Statement File</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.csv,.xlsx,.xls" required>
+                        <div class="form-text">Supported formats: PDF, CSV, Excel</div>
                     </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Upload</button>
-                    </div>
-                </form>
-            </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload & Review</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -406,5 +525,129 @@
                 }
             });
     });
+
+    // Add transaction form handling
+    document.getElementById('addTransactionForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+        
+        // Handle transaction type and amount
+        const transactionType = data.transaction_type;
+        let amount = parseFloat(data.amount);
+        
+        // Make amount negative for expenses
+        if (transactionType === 'expense') {
+            amount = -Math.abs(amount);
+        } else {
+            amount = Math.abs(amount);
+        }
+        
+        // Format date properly (YYYY-MM-DD)
+        const dateInput = data.date;
+        
+        // Prepare the final data object
+        const transactionData = {
+            bank: data.bank,
+            account_type: data.account_type,
+            date: dateInput, // Keep the date as is from the input
+            description: data.description,
+            amount: amount,
+            category: data.category || null,
+            transaction_type: transactionType,
+            is_debit: transactionType === 'expense' // Set is_debit based on transaction type
+        };
+        
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Adding...';
+        submitBtn.disabled = true;
+        
+        fetch('/api/transactions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(transactionData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.error) {
+                // Close modal and reload page
+                bootstrap.Modal.getInstance(document.getElementById('addTransactionModal')).hide();
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error adding transaction: ' + error.message);
+        })
+        .finally(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        });
+    });
+
+    // Set today's date as default
+    document.getElementById('transaction_date').valueAsDate = new Date();
+
+    // Handle transaction type change to show/hide appropriate categories
+    document.addEventListener('change', function(e) {
+        if (e.target.name === 'transaction_type') {
+            const incomeGroup = document.getElementById('income_categories_group');
+            const expenseGroup = document.getElementById('expense_categories_group');
+            const categorySelect = document.getElementById('transaction_category');
+            
+            if (e.target.value === 'income') {
+                incomeGroup.style.display = 'block';
+                expenseGroup.style.display = 'none';
+            } else {
+                incomeGroup.style.display = 'none';
+                expenseGroup.style.display = 'block';
+            }
+            
+            // Reset category selection
+            categorySelect.value = '';
+        }
+    });
+
+    // Upload form handling
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        submitBtn.innerHTML = '<i class="bi bi-spinner-border spinner-border-sm"></i> Uploading...';
+        submitBtn.disabled = true;
+        
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal and redirect to review page
+                bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+                window.location.href = data.redirect_url;
+            } else {
+                alert('Error: ' + (data.error || 'Upload failed'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Upload failed: ' + error.message);
+        })
+        .finally(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        });
+    });
 </script>
-{% endblock %}
+{% endblock %} 

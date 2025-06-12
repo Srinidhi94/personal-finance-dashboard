@@ -16,28 +16,7 @@ def uploads_dir():
     os.makedirs(uploads_dir, exist_ok=True)
     return uploads_dir
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_files(uploads_dir, mock_pdf_text):
-    """Create sample test files in the uploads directory"""
-    # Create Federal Bank sample
-    federal_path = os.path.join(uploads_dir, "Federal_Bank_Statement.pdf")
-    with open(federal_path, 'w') as f:
-        f.write(mock_pdf_text)
-    
-    # Create HDFC sample
-    hdfc_path = os.path.join(uploads_dir, "Statement_Example.pdf")
-    with open(hdfc_path, 'w') as f:
-        f.write(mock_pdf_text)
-    
-    yield
-    
-    # Cleanup
-    if os.path.exists(federal_path):
-        os.remove(federal_path)
-    if os.path.exists(hdfc_path):
-        os.remove(hdfc_path)
-
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mock_pdf_text():
     """Mock PDF text content"""
     return """

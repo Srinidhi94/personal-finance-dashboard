@@ -1,682 +1,1043 @@
 import os
-import json
-from datetime import datetime
-from flask import Flask, request, jsonify, render_template, redirect, url_for, send_file, send_from_directory
+from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory, flash, session
+from flask_migrate import Migrate
+from datetime import datetime, timedelta
+from sqlalchemy import desc, func, or_
 from werkzeug.utils import secure_filename
 
-# Import our parsers
-from parsers import extract_transactions_from_file
+from models import db, Transaction, Account, Category, User
+from services import TransactionService, CategoryService, AccountService, DataMigrationService
+from config import config
 
-app = Flask(__name__)
-app.jinja_env.globals.update(abs=abs)
-app.config['UPLOAD_FOLDER'] = 'uploads/'
-app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'csv', 'txt'}
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+# Initialize Flask app
+def create_app(config_name=None):
+    app = Flask(__name__)
+    
+    # Load configuration
+    config_name = config_name or os.environ.get('FLASK_ENV', 'development')
+    app.config.from_object(config[config_name])
+    config[config_name].init_app(app)
+    
+    # Initialize extensions
+    db.init_app(app)
+    migrate = Migrate(app, db)
+    
+    # Register routes
+    register_routes(app)
+    
+    # Create database tables and migrate data
+    with app.app_context():
+        db.create_all()
+        
+        # Check if we need to migrate from JSON files
+        if Transaction.query.count() == 0:
+            DataMigrationService.migrate_from_json()
+    
+    return app
 
-# Data storage files
-TRANSACTION_DB = 'data/transactions.json'
-CATEGORIES_FILE = 'data/categories.json'
-ACCOUNT_CONFIG_FILE = 'data/account_config.json'
-
-# Ensure directories exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs('data', exist_ok=True)
-
-# Initialize or load categories
-if os.path.exists(CATEGORIES_FILE):
-    with open(CATEGORIES_FILE, 'r') as f:
-        CATEGORIES = json.load(f)
-else:
-    # Default categories
-    CATEGORIES = {
-        "Income": {
-            "keywords": ["salary", "interest", "dividend", "bonus", "gift"],
-            "subcategories": {
-                "Salary": ["salary", "payroll", "pay"],
-                "Investment Income": ["interest", "dividend", "capital gain"],
-                "Gifts": ["gift", "present"],
-                "Other Income": ["bonus", "refund", "cashback"]
-            }
-        },
-        "Food": {
-            "keywords": ["grocery", "restaurant", "cafe", "food delivery", "groceries"],
-            "subcategories": {
-                "Groceries": ["grocery", "groceries", "supermarket"],
-                "Restaurants": ["restaurant", "dining", "lunch", "dinner"],
-                "Food Delivery": ["delivery", "zomato", "swiggy", "doordash", "uber eats"],
-                "Coffee & Snacks": ["cafe", "coffee", "bakery", "snacks"]
-            }
-        },
-        "Transportation": {
-            "keywords": ["fuel", "gas", "parking", "public transport", "car service", "uber", "lyft"],
-            "subcategories": {
-                "Fuel": ["fuel", "gas", "petrol", "diesel"],
-                "Public Transit": ["bus", "train", "metro", "subway", "public transport"],
-                "Taxi/Rideshare": ["uber", "lyft", "ola", "taxi", "cab"],
-                "Parking": ["parking"],
-                "Car Service": ["service", "repair", "maintenance"]
-            }
-        },
-        "Shopping": {
-            "keywords": ["clothing", "electronics", "furniture", "amazon", "online shopping"],
-            "subcategories": {
-                "Clothing": ["clothing", "apparel", "fashion", "dress", "shirt", "shoes"],
-                "Electronics": ["electronics", "gadget", "phone", "laptop", "computer"],
-                "Home Goods": ["furniture", "decor", "appliance"],
-                "Online Shopping": ["amazon", "flipkart", "myntra", "online"]
-            }
-        },
-        "Utilities": {
-            "keywords": ["electricity", "water", "gas", "internet", "phone", "mobile"],
-            "subcategories": {
-                "Electricity": ["electricity", "power", "light"],
-                "Water": ["water"],
-                "Gas": ["gas"],
-                "Internet": ["internet", "broadband", "wifi"],
-                "Mobile": ["mobile", "phone", "cell"]
-            }
-        },
-        "Rent": {
-            "keywords": ["rent", "lease", "housing", "apartment"],
-            "subcategories": {}
-        },
-        "Entertainment": {
-            "keywords": ["movies", "concert", "subscription", "netflix", "amazon prime"],
-            "subcategories": {
-                "Streaming": ["netflix", "amazon prime", "hotstar", "hulu", "disney+"],
-                "Movies": ["movie", "cinema", "theatre"],
-                "Music": ["concert", "spotify", "music"],
-                "Other": ["entertainment", "subscription"]
-            }
-        },
-        "Miscellaneous": {
-            "keywords": ["other", "misc", "unknown"],
-            "subcategories": {}
-        }
-    }
-    with open(CATEGORIES_FILE, 'w') as f:
-        json.dump(CATEGORIES, f, indent=2)
-
-# Initialize or load account configuration
-if os.path.exists(ACCOUNT_CONFIG_FILE):
-    with open(ACCOUNT_CONFIG_FILE, 'r') as f:
-        ACCOUNT_CONFIG = json.load(f)
-else:
-    ACCOUNT_CONFIG = {
-        "accounts": [
-            {
-                "bank": "HDFC",
-                "account_type": "credit_card",
-                "account_name": "HDFC Credit Card",
-                "parser": "hdfc_credit_card"
-            },
-            {
-                "bank": "HDFC",
-                "account_type": "savings",
-                "account_name": "HDFC Savings Account",
-                "parser": "hdfc_savings"
-            }
-        ]
-    }
-    with open(ACCOUNT_CONFIG_FILE, 'w') as f:
-        json.dump(ACCOUNT_CONFIG, f, indent=2)
-
-# Initialize or load transactions
-if os.path.exists(TRANSACTION_DB):
-    with open(TRANSACTION_DB, 'r') as f:
-        transactions = json.load(f)
-else:
-    transactions = []
-    with open(TRANSACTION_DB, 'w') as f:
-        json.dump(transactions, f, indent=2)
-
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
-
-def categorize_transaction(description, amount=None, is_debit=None):
-    """Categorize a transaction based on its description and amount"""
-    description = description.lower() if description else ""
+def register_routes(app):
     
-    # If it's a deposit (positive amount), categorize as income
-    if amount is not None and amount > 0:
-        return "Income"
-    
-    # If we know it's not a debit transaction, it's income
-    if is_debit is not None and is_debit == False:
-        return "Income"
-    
-    # Check if this is an income-related transaction based on common deposit keywords
-    income_keywords = ["salary", "interest", "dividend", "deposit", "credit", "bonus", 
-                     "refund", "cashback", "income", "payment received", "add fund", 
-                     "add money", "credit received", "ftd", "neft cr", "imps", "salary", 
-                     "interest earned"]
-    
-    for keyword in income_keywords:
-        if keyword in description:
-            return "Income"
-    
-    # Check for UPI transfers that are likely to be income
-    if "upi" in description and any(term in description for term in ["received", "credit", "cr", "add", "fund", "deposit"]):
-        return "Income"
-    
-    # Check if we've stored this exact transaction before
-    for transaction in transactions:
-        if transaction.get('description') and transaction['description'].lower() == description and transaction.get('category'):
-            return transaction['category']
-    
-    # Rule-based categorization
-    for category, category_data in CATEGORIES.items():
-        keywords = category_data.get("keywords", [])
-        for keyword in keywords:
-            if keyword.lower() in description:
-                return category
-    
-    # Default category
-    return "Miscellaneous"
-
-def categorize_subcategory(description, category):
-    """Determine the subcategory based on description and main category"""
-    description = description.lower()
-    
-    # Check if category exists in our structure
-    if category not in CATEGORIES:
-        return ""
-    
-    # Check if we've seen this exact transaction before
-    for transaction in transactions:
-        if (transaction['description'].lower() == description and
-            transaction['category'] == category and
-            transaction.get('subcategory')):
-            return transaction['subcategory']
-    
-    # Rule-based subcategory assignment
-    subcategories = CATEGORIES[category].get("subcategories", {})
-    for subcategory, keywords in subcategories.items():
-        for keyword in keywords:
-            if keyword.lower() in description:
-                return subcategory
-    
-    # Default to empty subcategory
-    return ""
-
-def generate_summary_data():
-    """Generate summary statistics for the dashboard"""
-    if not transactions:
-        return {
-            'total_transactions': 0,
-            'total_income': 0,
-            'total_expenses': 0,
-            'net_balance': 0,
-            'account_summary': [],
-            'category_summary': []
-        }
-    
-    # Basic summary
-    total_transactions = len(transactions)
-    total_income = sum(t['amount'] for t in transactions if t['category'] == 'Income')
-    total_expenses = sum(abs(t['amount']) for t in transactions if t['category'] != 'Income')
-    net_balance = total_income - total_expenses
-    
-    # Account summary
-    account_summary = []
-    account_dict = {}
-    
-    for t in transactions:
-        account_name = t['account_name']
-        if account_name not in account_dict:
-            account_dict[account_name] = {
-                'name': account_name,
-                'type': t['account_type'],
-                'bank': t['bank'],
-                'income': 0,
-                'expenses': 0,
-                'balance': 0
-            }
-        
-        if t['category'] == 'Income':
-            account_dict[account_name]['income'] += t['amount']
-        else:
-            account_dict[account_name]['expenses'] += abs(t['amount'])
-    
-    for account in account_dict.values():
-        account['balance'] = account['income'] - account['expenses']
-        account_summary.append(account)
-    
-    # Category summary
-    category_summary = []
-    category_dict = {}
-    
-    for t in transactions:
-        category = t['category']
-        if category not in category_dict:
-            category_dict[category] = {
-                'name': category,
-                'total': 0,
-                'count': 0,
-                'month_change': 0
-            }
-        
-        if category != 'Income':  # Only count expenses for non-income categories
-            category_dict[category]['total'] += abs(t['amount'])
-            category_dict[category]['count'] += 1
-        else:
-            # For income category, count but don't add to expense totals
-            category_dict[category]['count'] += 1
-    
-    for category in category_dict.values():
-        category_summary.append(category)
-    
-    # Sort by highest expense
-    category_summary.sort(key=lambda x: x['total'], reverse=True)
-    
-    return {
-        'total_transactions': total_transactions,
-        'total_income': total_income,
-        'total_expenses': total_expenses,
-        'net_balance': net_balance,
-        'account_summary': account_summary,
-        'category_summary': category_summary
-    }
-
-@app.route('/')
-def index():
-    # Generate summary data for combined dashboard & analytics
-    summary_data = generate_summary_data()
-    
-    return render_template('index.html', 
-                          transactions=transactions[-20:], 
-                          categories=CATEGORIES,
-                          accounts=ACCOUNT_CONFIG['accounts'],
-                          summary=summary_data)
-
-# Add a route for static files (helpful for debugging)
-@app.route('/static/<path:filename>')
-def static_files(filename):
-    return send_from_directory(app.static_folder, filename)
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return redirect(request.url)
-    
-    file = request.files['file']
-    bank = request.form.get('bank', 'Unknown')
-    account_type = request.form.get('account_type', 'Unknown')
-    account_name = request.form.get('account_name', 'Unknown')
-    
-    if file.filename == '':
-        return redirect(request.url)
-    
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        
-        # Extract transactions
-        new_transactions = extract_transactions_from_file(
-            filepath, bank, account_type, account_name
-        )
-        
-        # Categorize transactions
-        for transaction in new_transactions:
-            amount = transaction.get('amount', 0)
-            is_debit = transaction.get('is_debit', None)
-            category = categorize_transaction(transaction['description'], amount, is_debit)
-            subcategory = categorize_subcategory(transaction['description'], category)
-            transaction['category'] = category
-            transaction['subcategory'] = subcategory
-        
-        # Add to our database
-        global transactions
-        transactions.extend(new_transactions)
-        
-        # Save updated transactions
-        with open(TRANSACTION_DB, 'w') as f:
-            json.dump(transactions, f, indent=2)
-        
-        return redirect(url_for('review_transactions', 
-                              batch_id=len(transactions)-len(new_transactions)))
-    
-    return redirect(url_for('index'))
-
-@app.route('/review/<int:batch_id>')
-def review_transactions(batch_id):
-    # Get transactions starting from batch_id
-    batch = transactions[batch_id:]
-    return render_template('review.html', 
-                          transactions=batch, 
-                          batch_id=batch_id, 
-                          categories=CATEGORIES)
-
-@app.route('/update_transaction', methods=['POST'])
-def update_transaction():
-    data = request.json
-    transaction_idx = data['transaction_idx']
-    new_category = data['category']
-    new_subcategory = data.get('subcategory', '')
-    new_description = data.get('description', None)
-    
-    # Update category and subcategory
-    transactions[transaction_idx]['category'] = new_category
-    transactions[transaction_idx]['subcategory'] = new_subcategory
-    
-    # Update description if provided
-    if new_description is not None:
-        transactions[transaction_idx]['description'] = new_description
-    
-    # Save updated transactions
-    with open(TRANSACTION_DB, 'w') as f:
-        json.dump(transactions, f, indent=2)
-    
-    return jsonify({'success': True})
-
-@app.route('/export', methods=['GET'])
-def export_data():
-    format_type = request.args.get('format', 'excel')
-    
-    if format_type == 'excel':
-        import pandas as pd
-        from openpyxl import Workbook
-        from openpyxl.utils.dataframe import dataframe_to_rows
-        from openpyxl.styles import Font, PatternFill, Alignment
-        
-        # Convert transactions to DataFrame
-        df = pd.DataFrame(transactions)
-        
-        # Create workbook
-        wb = Workbook()
-        ws_trans = wb.active
-        ws_trans.title = "Transactions"
-        
-        # Add headers
-        headers = ["Date", "Description", "Amount", "Category", "Subcategory", "Account", "Bank"]
-        ws_trans.append(headers)
-        
-        # Style headers
-        for col in range(1, len(headers) + 1):
-            cell = ws_trans.cell(row=1, column=col)
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill("solid", fgColor="D9D9D9")
-        
-        # Add data
-        for t in transactions:
-            ws_trans.append([
-                t['date'],
-                t['description'],
-                t['amount'],
-                t['category'],
-                t.get('subcategory', ''),
-                t['account_name'],
-                t['bank']
-            ])
-        
-        # Add category summary sheet
-        ws_cat = wb.create_sheet(title="Category Summary")
-        
-        # Add headers
-        ws_cat.append(["Category", "Total Amount", "Transaction Count"])
-        
-        # Style headers
-        for col in range(1, 4):
-            cell = ws_cat.cell(row=1, column=col)
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill("solid", fgColor="D9D9D9")
-        
-        # Add category data
-        category_summary = {}
-        for t in transactions:
-            if t['amount'] < 0:  # Consider only expenses
-                category = t['category']
-                if category not in category_summary:
-                    category_summary[category] = {'total': 0, 'count': 0}
-                
-                category_summary[category]['total'] += abs(t['amount'])
-                category_summary[category]['count'] += 1
-        
-        row = 2
-        for category, data in sorted(category_summary.items(), 
-                                    key=lambda x: x[1]['total'], 
-                                    reverse=True):
-            ws_cat.append([
-                category,
-                data['total'],
-                data['count']
-            ])
-            row += 1
-        
-        # Add account summary sheet
-        ws_acc = wb.create_sheet(title="Account Summary")
-        
-        # Add headers
-        ws_acc.append(["Account", "Income", "Expenses", "Balance"])
-        
-        # Style headers
-        for col in range(1, 5):
-            cell = ws_acc.cell(row=1, column=col)
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill("solid", fgColor="D9D9D9")
-        
-        # Add account data
-        account_summary = {}
-        for t in transactions:
-            account = t['account_name']
-            if account not in account_summary:
-                account_summary[account] = {'income': 0, 'expenses': 0}
-            
-            if t['amount'] > 0:
-                account_summary[account]['income'] += t['amount']
-            else:
-                account_summary[account]['expenses'] += abs(t['amount'])
-        
-        row = 2
-        for account, data in account_summary.items():
-            balance = data['income'] - data['expenses']
-            ws_acc.append([
-                account,
-                data['income'],
-                data['expenses'],
-                balance
-            ])
-            row += 1
-        
-        # Save the workbook
-        output_file = 'expense_tracker_export.xlsx'
-        wb.save(output_file)
-        
-        return send_file(output_file, as_attachment=True)
-    
-    elif format_type == 'csv':
-        import pandas as pd
-        
-        # Convert transactions to DataFrame
-        df = pd.DataFrame(transactions)
-        
-        # Select relevant columns
-        if not df.empty:
-            columns = ['date', 'description', 'amount', 'category', 'subcategory', 
-                       'account_name', 'bank', 'account_type']
-            export_df = df[columns]
-        else:
-            export_df = pd.DataFrame(columns=['date', 'description', 'amount', 'category', 
-                                              'subcategory', 'account_name', 'bank', 'account_type'])
-        
-        # Save to CSV
-        output_file = 'expense_tracker_export.csv'
-        export_df.to_csv(output_file, index=False)
-        
-        return send_file(output_file, as_attachment=True)
-    
-    return jsonify({'success': False, 'message': 'Invalid format type'})
-
-@app.route('/api/transactions', methods=['GET'])
-def get_transactions():
-    return jsonify(transactions)
-
-@app.route('/api/categories', methods=['GET'])
-def get_categories():
-    return jsonify(CATEGORIES)
-
-@app.route('/api/accounts', methods=['GET'])
-def get_accounts():
-    return jsonify(ACCOUNT_CONFIG['accounts'])
-
-@app.route('/dashboard')
-def dashboard():
-    # Redirect to home page since we've merged dashboard and analytics
-    return redirect(url_for('index'))
-
-@app.route('/transactions')
-def view_transactions():
-    # Filter parameters
-    category = request.args.get('category', '')
-    account = request.args.get('account', '')
-    date_from = request.args.get('date_from', '')
-    date_to = request.args.get('date_to', '')
-    
-    # Filter transactions
-    filtered_transactions = transactions.copy()
-    
-    if category:
-        filtered_transactions = [t for t in filtered_transactions if t['category'] == category]
-    
-    if account:
-        filtered_transactions = [t for t in filtered_transactions if t['account_name'] == account]
-    
-    if date_from:
-        filtered_transactions = [t for t in filtered_transactions if t['date'] >= date_from]
-    
-    if date_to:
-        filtered_transactions = [t for t in filtered_transactions if t['date'] <= date_to]
-    
-    # Sort by date (oldest first)
-    # Convert date strings to datetime objects for proper sorting
-    def parse_date_for_sorting(date_str):
+    @app.route('/')
+    def index():
+        """Main dashboard page with analytics"""
         try:
-            # Parse DD/MM/YYYY format (most common)
-            return datetime.strptime(date_str, "%d/%m/%Y")
-        except ValueError:
-            try:
-                # Try YYYY-MM-DD format
-                return datetime.strptime(date_str, "%Y-%m-%d")
-            except ValueError:
-                try:
-                    # Try DD-MM-YYYY format
-                    return datetime.strptime(date_str, "%d-%m-%Y")
-                except ValueError:
-                    # If all else fails, return a very old date
-                    # This ensures unparseable dates are at the beginning
-                    # and can be easily identified and fixed
-                    print(f"Warning: Could not parse date format: {date_str}")
-                    return datetime(1900, 1, 1)
+            # Get summary data
+            summary = TransactionService.get_transactions_summary()
+            
+            # Get recent transactions
+            recent_transactions = Transaction.query.order_by(desc(Transaction.date)).limit(10).all()
+            
+            # Get accounts
+            accounts = Account.query.filter_by(is_active=True).all()
+            
+            # Define categories and options for modals
+            expense_categories = [
+                'Food', 'Gifts', 'Health/medical', 'Home', 'Transportation', 
+                'Personal', 'Pets', 'Family', 'Travel', 'Debt', 'Other', 
+                'Rent', 'Credit Card', 'Alcohol', 'Consumables', 'Investments'
+            ]
+            
+            income_categories = [
+                'Savings', 'Paycheck', 'Bonus', 'Interest', 'Splitwise', 'RSU'
+            ]
+            
+            account_types = ['Savings Account', 'Credit Card']
+            banks = ['HDFC Bank', 'Federal Bank']
+            
+            return render_template('index.html', 
+                                 summary=summary,
+                                 recent_transactions=[t.to_dict() for t in recent_transactions],
+                                 accounts=[a.to_dict() for a in accounts],
+                                 expense_categories=expense_categories,
+                                 income_categories=income_categories,
+                                 account_types=account_types,
+                                 banks=banks)
+        except Exception as e:
+            print(f"Error loading dashboard: {e}")
+            return render_template('index.html', 
+                                 summary={
+                                     'total_transactions': 0,
+                                     'total_income': 0,
+                                     'total_expenses': 0,
+                                     'net_balance': 0
+                                 },
+                                 recent_transactions=[],
+                                 accounts=[],
+                                 expense_categories=[],
+                                 income_categories=[],
+                                 account_types=[],
+                                 banks=[])
     
-    # Sort transactions by date (oldest first)
-    filtered_transactions.sort(key=lambda x: parse_date_for_sorting(x['date']))
-    
-    return render_template('transactions.html', 
-                          transactions=filtered_transactions,
-                          categories=CATEGORIES,
-                          accounts=ACCOUNT_CONFIG['accounts'])
+    @app.route('/transactions')
+    def transactions():
+        """Transactions page with filtering and pagination"""
+        try:
+            # Define categories
+            expense_categories = [
+                'Food', 'Gifts', 'Health/medical', 'Home', 'Transportation', 
+                'Personal', 'Pets', 'Family', 'Travel', 'Debt', 'Other', 
+                'Rent', 'Credit Card', 'Alcohol', 'Consumables', 'Investments'
+            ]
+            
+            income_categories = [
+                'Savings', 'Paycheck', 'Bonus', 'Interest', 'Splitwise', 'RSU'
+            ]
+            
+            account_types = ['Savings Account', 'Credit Card']
+            banks = ['HDFC Bank', 'Federal Bank']
+            
+            # Get filter parameters
+            category_filter = request.args.get('category')
+            account_filter = request.args.get('account')
+            bank_filter = request.args.get('bank')
+            date_from = request.args.get('date_from')
+            date_to = request.args.get('date_to')
+            page = int(request.args.get('page', 1))
+            per_page = int(request.args.get('per_page', 50))
+            
+            # Build query
+            query = Transaction.query
+            
+            if category_filter:
+                # Filter by tags JSON field or category column
+                # Use LIKE pattern to match category in JSON array
+                query = query.filter(
+                    or_(
+                        Transaction.tags.like(f'%"categories":%[%"{category_filter}"%]%'),
+                        Transaction.category == category_filter
+                    )
+                )
+            
+            # Always join Account table for filtering
+            query = query.outerjoin(Account)
+            
+            if account_filter:
+                # Filter by tags JSON field or account table
+                # Check both the tags.account_type array and the Account table
+                query = query.filter(
+                    or_(
+                        Transaction.tags.like(f'%"account_type":%[%"{account_filter}"%]%'),
+                        Account.account_type == account_filter
+                    )
+                )
+                
+            if bank_filter:
+                query = query.filter(Account.bank == bank_filter)
+            
+            if date_from:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                query = query.filter(Transaction.date >= date_from_obj)
+            
+            if date_to:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                query = query.filter(Transaction.date <= date_to_obj)
+            
+            # Order by date (newest first)
+            query = query.order_by(desc(Transaction.date))
+            
+            # Paginate
+            transactions_paginated = query.paginate(
+                page=page, per_page=per_page, error_out=False
+            )
 
-@app.route('/api/charts/category_distribution', methods=['GET'])
-def chart_category_distribution():
-    """API endpoint for category distribution chart"""
-    if not transactions:
-        return jsonify({})
+            return render_template('transactions.html',
+                                 transactions=transactions_paginated,
+                                 categories=expense_categories + income_categories,
+                                 account_types=account_types,
+                                 banks=banks,
+                                 expense_categories=expense_categories,
+                                 income_categories=income_categories,
+                                 filters={
+                                     'category': category_filter,
+                                     'account': account_filter,
+                                     'bank': bank_filter,
+                                     'date_from': date_from,
+                                     'date_to': date_to
+                                 })
+        except Exception as e:
+            print(f"Error loading transactions: {e}")
+            return render_template('transactions.html',
+                                 transactions=None,
+                                 categories=[],
+                                 account_types=[],
+                                 banks=[],
+                                 expense_categories=[],
+                                 income_categories=[],
+                                 filters={})
     
-    # Filter expenses only
-    expenses = [t for t in transactions if t['amount'] < 0]
+    @app.route('/review-upload')
+    def review_upload():
+        """Review/confirmation page for uploaded transactions"""
+        try:
+            # Get parsed transactions from session
+            pending_transactions = session.get('pending_transactions', [])
+            
+            if not pending_transactions:
+                flash('No transactions to review', 'warning')
+                return redirect(url_for('index'))
+            
+            expense_categories = [
+                'Food', 'Gifts', 'Health/medical', 'Home', 'Transportation', 
+                'Personal', 'Pets', 'Family', 'Travel', 'Debt', 'Other', 
+                'Rent', 'Credit Card', 'Alcohol', 'Consumables', 'Investments'
+            ]
+            
+            income_categories = [
+                'Savings', 'Paycheck', 'Bonus', 'Interest', 'Splitwise', 'RSU'
+            ]
+            
+            account_types = ['Savings Account', 'Credit Card']
+            
+            return render_template('review_upload.html',
+                                 transactions=pending_transactions,
+                                 expense_categories=expense_categories,
+                                 income_categories=income_categories,
+                                 account_types=account_types)
+        except Exception as e:
+            print(f"Error loading review page: {e}")
+            flash('Error loading review page', 'error')
+            return redirect(url_for('index'))
     
-    # Group by category
-    categories = {}
-    for t in expenses:
-        category = t['category']
-        if category not in categories:
-            categories[category] = 0
-        categories[category] += abs(t['amount'])
+    @app.route('/api/transactions', methods=['GET'])
+    def api_get_transactions():
+        """API endpoint to get transaction data"""
+        try:
+            transactions = Transaction.query.order_by(desc(Transaction.date)).limit(100).all()
+            return jsonify([t.to_dict() for t in transactions])
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-    # Format for chart
-    labels = list(categories.keys())
-    values = list(categories.values())
+    @app.route('/api/transactions', methods=['POST'])
+    def api_create_transaction():
+        """API endpoint to create a new transaction"""
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            required_fields = ['description', 'amount', 'date']
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({'error': f'Missing required field: {field}'}), 400
+            
+            # Get or create account based on bank and account_type
+            if 'account_id' not in data:
+                bank = data.get('bank', 'HDFC')
+                account_type = data.get('account_type', 'Savings Account')
+                account = AccountService.get_or_create_account(
+                    name=f'{bank} {account_type}',
+                    bank=bank,
+                    account_type=account_type
+                )
+                data['account_id'] = account.id
+            
+            # Auto-categorize if not provided
+            if 'category' not in data:
+                data['category'] = CategoryService.categorize_transaction(
+                    data['description'], 
+                    float(data['amount']), 
+                    data.get('is_debit', True)
+                )
+            
+            # Auto-subcategorize if not provided
+            if 'subcategory' not in data:
+                data['subcategory'] = CategoryService.categorize_subcategory(
+                    data['description'], 
+                    data['category']
+                )
+            
+            # Create transaction
+            transaction = TransactionService.create_transaction(data)
+            
+            return jsonify(transaction.to_dict()), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-    # Generate colors
-    colors = [f'hsl({hash(label) % 360}, 70%, 60%)' for label in labels]
+    @app.route('/api/transactions/<int:transaction_id>', methods=['PUT'])
+    def api_update_transaction(transaction_id):
+        """API endpoint to update a transaction"""
+        try:
+            data = request.get_json()
+            transaction = TransactionService.update_transaction(transaction_id, data)
+            
+            if not transaction:
+                return jsonify({'error': 'Transaction not found'}), 404
+            
+            return jsonify(transaction.to_dict())
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-    return jsonify({
-        'labels': labels,
-        'datasets': [{
-            'data': values,
-            'backgroundColor': colors
-        }]
-    })
+    @app.route('/api/transactions/<int:transaction_id>', methods=['DELETE'])
+    def api_delete_transaction(transaction_id):
+        """API endpoint to delete a transaction"""
+        try:
+            success = TransactionService.delete_transaction(transaction_id)
+            
+            if not success:
+                return jsonify({'error': 'Transaction not found'}), 404
+            
+            return jsonify({'message': 'Transaction deleted successfully'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/accounts', methods=['GET'])
+    def api_get_accounts():
+        """API endpoint to get accounts"""
+        try:
+            accounts = Account.query.filter_by(is_active=True).all()
+            return jsonify([a.to_dict() for a in accounts])
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/categories', methods=['GET'])
+    def api_get_categories():
+        """API endpoint to get categories"""
+        try:
+            categories = Category.query.filter_by(is_active=True).all()
+            return jsonify([c.to_dict() for c in categories])
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/dashboard/summary', methods=['GET'])
+    def api_dashboard_summary():
+        """API endpoint for dashboard summary data"""
+        try:
+            summary = TransactionService.get_transactions_summary()
+            return jsonify(summary)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/charts/category_distribution', methods=['GET'])
+    def api_category_distribution():
+        """API endpoint for category distribution chart data"""
+        try:
+            # Get expense categories (excluding income)
+            category_data = db.session.query(
+                Transaction.category,
+                func.sum(Transaction.amount).label('total')
+            ).filter(
+                Transaction.is_debit == True,
+                Transaction.category != 'Income'
+            ).group_by(Transaction.category).all()
+            
+            if not category_data:
+                return jsonify({})
+            
+            # Format for chart
+            categories = {}
+            for category, total in category_data:
+                categories[category] = abs(float(total))
+            
+            # Generate colors
+            labels = list(categories.keys())
+            values = list(categories.values())
+            colors = [f'hsl({hash(label) % 360}, 70%, 60%)' for label in labels]
+            
+            return jsonify({
+                'labels': labels,
+                'datasets': [{
+                    'data': values,
+                    'backgroundColor': colors
+                }]
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+            
+    @app.route('/api/charts/category-distribution', methods=['GET'])
+    def api_category_distribution_alt():
+        """Alternative API endpoint for category distribution chart data"""
+        try:
+            # Get expense categories (excluding income)
+            category_data = db.session.query(
+                Transaction.category,
+                func.sum(Transaction.amount).label('total')
+            ).filter(
+                Transaction.is_debit == True,
+                Transaction.category != 'Income'
+            ).group_by(Transaction.category).all()
+            
+            return jsonify([
+                {'category': category, 'amount': float(abs(amount))}
+                for category, amount in category_data
+            ])
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/charts/monthly_trends', methods=['GET'])
+    def api_monthly_trends():
+        """API endpoint for monthly income/expense trend (original format)"""
+        try:
+            # Get all transactions and process in Python
+            transactions = Transaction.query.all()
+            
+            # Group by month
+            monthly_data = {}
+            for transaction in transactions:
+                month_key = transaction.date.strftime('%Y-%m')
+                if month_key not in monthly_data:
+                    monthly_data[month_key] = {'income': 0, 'expenses': 0}
+                
+                if transaction.is_debit:
+                    monthly_data[month_key]['expenses'] += abs(float(transaction.amount))
+                else:
+                    monthly_data[month_key]['income'] += float(transaction.amount)
+            
+            # Sort by month and get last 12 months
+            sorted_months = sorted(monthly_data.keys())[-12:]
+            
+            if not sorted_months:
+                return jsonify({})
+            
+            # Format for chart
+            labels = []
+            income_data = []
+            expense_data = []
+            
+            for month_key in sorted_months:
+                # Format month label
+                year, month = month_key.split('-')
+                month_name = datetime(int(year), int(month), 1).strftime('%b')
+                labels.append(f"{month_name} '{str(int(year))[2:]}")
+                income_data.append(monthly_data[month_key]['income'])
+                expense_data.append(monthly_data[month_key]['expenses'])
+            
+            return jsonify({
+                'labels': labels,
+                'datasets': [
+                    {
+                        'label': 'Income',
+                        'data': income_data,
+                        'backgroundColor': 'rgba(75, 192, 192, 0.6)'
+                    },
+                    {
+                        'label': 'Expenses',
+                        'data': expense_data,
+                        'backgroundColor': 'rgba(255, 99, 132, 0.6)'
+                    }
+                ]
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+            
+    @app.route('/api/charts/monthly-trend', methods=['GET'])
+    def api_monthly_trend():
+        """API endpoint for monthly income/expense trend"""
+        try:
+            # Get all transactions and process in Python
+            transactions = Transaction.query.all()
+            
+            # Group by month
+            monthly_data = {}
+            for transaction in transactions:
+                month_key = transaction.date.strftime('%Y-%m')
+                if month_key not in monthly_data:
+                    monthly_data[month_key] = {'income': 0, 'expenses': 0}
+                
+                if transaction.is_debit:
+                    monthly_data[month_key]['expenses'] += abs(float(transaction.amount))
+                else:
+                    monthly_data[month_key]['income'] += float(transaction.amount)
+            
+            # Sort by month and get last 12 months
+            sorted_months = sorted(monthly_data.keys())[-12:]
+            
+            return jsonify([
+                {
+                    'month': month_key,
+                    'income': monthly_data[month_key]['income'],
+                    'expenses': monthly_data[month_key]['expenses']
+                }
+                for month_key in sorted_months
+            ])
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+            
+    @app.route('/api/charts/account_distribution', methods=['GET'])
+    def api_account_distribution():
+        """API endpoint for account distribution chart"""
+        try:
+            # Get all transactions and process in Python
+            transactions = Transaction.query.join(Account).all()
+            
+            # Group by account
+            account_data = {}
+            for transaction in transactions:
+                account_name = transaction.account.name
+                if account_name not in account_data:
+                    account_data[account_name] = {'income': 0, 'expenses': 0}
+                
+                if transaction.is_debit:
+                    account_data[account_name]['expenses'] += abs(float(transaction.amount))
+                else:
+                    account_data[account_name]['income'] += float(transaction.amount)
+            
+            if not account_data:
+                return jsonify({})
+            
+            # Format for chart
+            labels = []
+            income_data = []
+            expense_data = []
+            
+            for account_name, data in account_data.items():
+                labels.append(account_name)
+                income_data.append(data['income'])
+                expense_data.append(data['expenses'])
+            
+            return jsonify({
+                'labels': labels,
+                'datasets': [
+                    {
+                        'label': 'Income',
+                        'data': income_data,
+                        'backgroundColor': 'rgba(75, 192, 192, 0.6)',
+                        'borderColor': 'rgba(75, 192, 192, 1)',
+                        'borderWidth': 1
+                    },
+                    {
+                        'label': 'Expenses',
+                        'data': expense_data,
+                        'backgroundColor': 'rgba(255, 99, 132, 0.6)',
+                        'borderColor': 'rgba(255, 99, 132, 1)',
+                        'borderWidth': 1
+                    }
+                ]
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    def allowed_file(filename):
+        """Check if file extension is allowed"""
+        ALLOWED_EXTENSIONS = {'pdf', 'csv', 'txt'}
+        return '.' in filename and \
+               filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    
+    def extract_transactions_from_file(filepath, bank, account_type, account_name):
+        """Extract transactions from uploaded file using parsers"""
+        try:
+            # Import parsers
+            from parsers import extract_transactions_from_file as parse_file
+            
+            # Use the parser system to extract transactions
+            transactions = parse_file(filepath, bank, account_type, account_name)
+            
+            # Add metadata to transactions
+            for transaction in transactions:
+                transaction['bank'] = bank
+                transaction['account_type'] = account_type
+                transaction['account_name'] = account_name or f"{bank} {account_type.title()}"
+                
+                # Ensure required fields exist
+                if 'category' not in transaction:
+                    transaction['category'] = 'Uncategorized'
+                if 'subcategory' not in transaction:
+                    transaction['subcategory'] = ''
+                if 'transaction_id' not in transaction:
+                    transaction['transaction_id'] = f"{transaction['date']}_{transaction['amount']}_{len(transactions)}"
+            
+            return transactions
+        except Exception as e:
+            print(f"Error extracting transactions from file: {e}")
+            return []
+    
+    def extract_transactions_from_file_new(filepath, bank, account_type, account_name):
+        """Extract transactions from uploaded file for review flow"""
+        try:
+            if filepath.endswith('.pdf'):
+                # Use appropriate parser
+                if bank.lower() == 'federal bank':
+                    from parsers.federal_bank_parser import extract_federal_bank_savings
+                    transactions = extract_federal_bank_savings(filepath)
+                elif bank.lower() == 'hdfc':
+                    if account_type.lower() == 'credit card':
+                        from parsers.hdfc_credit_card import HDFCCreditCardParser
+                        parser = HDFCCreditCardParser()
+                        transactions = parser.parse(filepath)
+                    else:
+                        from parsers.hdfc_savings import HDFCSavingsParser
+                        parser = HDFCSavingsParser()
+                        transactions = parser.parse(filepath)
+                else:
+                    from parsers.generic import GenericParser
+                    parser = GenericParser()
+                    transactions = parser.parse(filepath)
+                
+                # Transform to our format
+                formatted_transactions = []
+                for trans in transactions:
+                    amount = float(trans.get('amount', 0))
+                    formatted_trans = {
+                        'date': trans.get('date'),
+                        'description': trans.get('description', ''),
+                        'amount': amount,
+                        'bank': bank,
+                        'account_type': account_type,
+                        'account_name': account_name,
+                        'category': 'Paycheck' if amount > 0 else 'Other',
+                        'subcategory': '',
+                        'notes': ''
+                    }
+                    formatted_transactions.append(formatted_trans)
+                
+                return formatted_transactions
+            else:
+                # Handle CSV/Excel files
+                return []
+                
+        except Exception as e:
+            print(f"Error parsing file: {e}")
+            return []
 
-@app.route('/api/charts/account_distribution', methods=['GET'])
-def chart_account_distribution():
-    """API endpoint for account distribution chart"""
-    if not transactions:
-        return jsonify({})
+    @app.route('/upload', methods=['POST'])
+    def upload_file():
+        """Handle file upload with review/confirmation flow"""
+        try:
+            if 'file' not in request.files:
+                return jsonify({'error': 'No file selected'}), 400
+            
+            file = request.files['file']
+            bank = request.form.get('bank', 'HDFC')
+            account_type = request.form.get('account_type', 'Savings Account')
+            account_name = request.form.get('account_name', f'{bank} {account_type}')
+            
+            if file.filename == '':
+                return jsonify({'error': 'No file selected'}), 400
+            
+            if not allowed_file(file.filename):
+                return jsonify({'error': 'Invalid file type. Please upload PDF, CSV, or Excel files.'}), 400
+            
+            # Save file
+            filename = secure_filename(file.filename)
+            upload_path = os.path.join(app.config.get('UPLOAD_FOLDER', 'uploads'), filename)
+            os.makedirs(os.path.dirname(upload_path), exist_ok=True)
+            file.save(upload_path)
+            
+            # Extract transactions
+            transactions = extract_transactions_from_file_new(upload_path, bank, account_type, account_name)
+            
+            if not transactions:
+                return jsonify({'error': 'Could not extract transactions from file'}), 400
+            
+            # Store transactions in session for review
+            session['pending_transactions'] = transactions
+            
+            # Return success with redirect URL
+            return jsonify({
+                'success': True,
+                'message': f'Extracted {len(transactions)} transactions',
+                'transaction_count': len(transactions),
+                'redirect_url': url_for('review_upload')
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-    # Group by account
-    accounts = {}
-    for t in transactions:
-        account = t['account_name']
-        if account not in accounts:
-            accounts[account] = {
-                'income': 0,
-                'expenses': 0
+    @app.route('/api/upload/confirm', methods=['POST'])
+    def confirm_upload():
+        """Confirm and save reviewed transactions"""
+        try:
+            data = request.get_json()
+            transactions_data = data.get('transactions', [])
+            
+            if not transactions_data:
+                return jsonify({'error': 'No transactions to save'}), 400
+            
+            saved_transactions = []
+            
+            for trans_data in transactions_data:
+                # Get or create account
+                bank = trans_data.get('bank', 'HDFC')
+                account_type = trans_data.get('account_type', 'Savings Account')
+                account = AccountService.get_or_create_account(
+                    name=trans_data.get('account_name', f'{bank} {account_type}'),
+                    bank=bank,
+                    account_type=account_type
+                )
+                
+                # Create transaction  
+                # Handle multiple date formats
+                date_str = trans_data['date']
+                if '/' in date_str:
+                    # Handle DD/MM/YYYY format
+                    transaction_date = datetime.strptime(date_str, '%d/%m/%Y').date()
+                else:
+                    # Handle YYYY-MM-DD format
+                    transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                
+                transaction = Transaction(
+                    date=transaction_date,
+                    description=trans_data['description'],
+                    amount=float(trans_data['amount']),
+                    category=trans_data.get('category', 'Other'),
+                    subcategory=trans_data.get('subcategory'),
+                    account_id=account.id,
+                    is_debit=float(trans_data['amount']) < 0,
+                    transaction_type='pdf_parsed',
+                    notes=trans_data.get('notes')
+                )
+                
+                # Set tags - combine categories and account types
+                tags = {
+                    'categories': [trans_data.get('category', 'Other')],
+                    'account_type': [account_type]
+                }
+                transaction.set_tags(tags)
+                
+                # Also set legacy fields for backward compatibility
+                transaction.category = trans_data.get('category', 'Other')
+                transaction.bank = bank
+                
+                db.session.add(transaction)
+                saved_transactions.append(transaction)
+            
+            db.session.commit()
+            
+            # Clear pending transactions from session
+            session.pop('pending_transactions', None)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Successfully saved {len(saved_transactions)} transactions',
+                'transaction_count': len(saved_transactions)
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint"""
+        try:
+            # Check database connection
+            transaction_count = Transaction.query.count()
+            account_count = Account.query.count()
+            
+            return jsonify({
+                'status': 'healthy',
+                'database': 'connected',
+                'transactions': transaction_count,
+                'accounts': account_count
+            })
+        except Exception as e:
+            return jsonify({
+                'status': 'unhealthy',
+                'error': str(e)
+            }), 500
+
+    @app.route('/debug/db')
+    def debug_db():
+        """Debug endpoint to check database configuration and data"""
+        try:
+            from flask import current_app
+            import os
+            
+            # Get current config
+            db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', 'Not configured')
+            
+            # Check transaction count
+            transaction_count = Transaction.query.count()
+            account_count = Account.query.count()
+            
+            # Get sample transactions
+            sample_transactions = []
+            transactions = Transaction.query.limit(5).all()
+            for t in transactions:
+                sample_transactions.append({
+                    'id': t.id,
+                    'date': t.date.isoformat(),
+                    'description': t.description[:50],
+                    'amount': float(t.amount),
+                    'is_debit': t.is_debit
+                })
+            
+            # Check if database file exists
+            db_file_exists = "N/A"
+            if 'sqlite' in db_uri:
+                db_path = db_uri.replace('sqlite:///', '')
+                if not db_path.startswith('/'):
+                    db_path = os.path.join(os.getcwd(), db_path)
+                db_file_exists = os.path.exists(db_path)
+            
+            return jsonify({
+                'database_uri': db_uri,
+                'transaction_count': transaction_count,
+                'account_count': account_count,
+                'sample_transactions': sample_transactions,
+                'database_file_exists': db_file_exists,
+                'working_directory': os.getcwd()
+            })
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'database_uri': current_app.config.get('SQLALCHEMY_DATABASE_URI', 'Not configured')
+            }), 500
+    
+    @app.route('/api/analytics/tags', methods=['GET'])
+    def api_tag_analytics():
+        """API endpoint to get tag-based analytics"""
+        try:
+            analytics = TransactionService.get_tag_analytics()
+            return jsonify(analytics)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/analytics/spending', methods=['GET'])
+    def api_spending_analysis():
+        """API endpoint to get spending analysis by category and account"""
+        try:
+            categories = request.args.getlist('categories')
+            accounts = request.args.getlist('accounts')
+            date_from = request.args.get('date_from')
+            date_to = request.args.get('date_to')
+            
+            # Parse dates if provided
+            date_from_obj = None
+            date_to_obj = None
+            if date_from:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            if date_to:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            
+            analysis = TransactionService.get_spending_by_category_and_account(
+                categories=categories if categories else None,
+                accounts=accounts if accounts else None,
+                date_from=date_from_obj,
+                date_to=date_to_obj
+            )
+            
+            return jsonify(analysis)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/transactions/by-tags', methods=['GET'])
+    def api_transactions_by_tags():
+        """API endpoint to get transactions filtered by tags"""
+        try:
+            tag_filters = {}
+            date_from = request.args.get('date_from')
+            date_to = request.args.get('date_to')
+            
+            # Parse tag filters from query parameters
+            for param in request.args:
+                if param.startswith('tags['):
+                    # Extract tag type from parameter name like 'tags[categories]'
+                    tag_type = param[5:-1]  # Remove 'tags[' and ']'
+                    tag_values = request.args.getlist(param)
+                    tag_filters[tag_type] = tag_values
+            
+            transactions = TransactionService.get_transactions_by_tags(
+                tag_filters=tag_filters,
+                date_from=datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else None,
+                date_to=datetime.strptime(date_to, '%Y-%m-%d').date() if date_to else None
+            )
+            
+            return jsonify([t.to_dict() for t in transactions])
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/dashboard/tag-analytics', methods=['GET'])
+    def api_dashboard_tag_analytics():
+        """Comprehensive tag-based dashboard analytics"""
+        try:
+            date_from = request.args.get('date_from')
+            date_to = request.args.get('date_to')
+            
+            # Parse date filters
+            from_date = datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else None
+            to_date = datetime.strptime(date_to, '%Y-%m-%d').date() if date_to else None
+            
+            # Get all transactions in date range
+            query = Transaction.query
+            if from_date:
+                query = query.filter(Transaction.date >= from_date)
+            if to_date:
+                query = query.filter(Transaction.date <= to_date)
+            
+            transactions = query.all()
+            
+            # Aggregate analytics
+            analytics = {
+                'total_transactions': len(transactions),
+                'total_income': 0,
+                'total_expenses': 0,
+                'category_breakdown': {},
+                'bank_breakdown': {},
+                'account_breakdown': {},
+                'monthly_trends': {},
+                'top_categories': [],
+                'spending_by_account_and_category': [],
+                'tag_combinations': {}
             }
-        
-        if t['amount'] > 0:
-            accounts[account]['income'] += t['amount']
-        else:
-            accounts[account]['expenses'] += abs(t['amount'])
+            
+            # Process each transaction
+            for transaction in transactions:
+                amount = float(transaction.amount)
+                tags = transaction.get_tags()
+                
+                # Income/Expense totals
+                if transaction.is_debit:
+                    analytics['total_expenses'] += abs(amount)
+                else:
+                    analytics['total_income'] += amount
+                
+                # Monthly trends
+                month_key = transaction.date.strftime('%Y-%m')
+                if month_key not in analytics['monthly_trends']:
+                    analytics['monthly_trends'][month_key] = {'income': 0, 'expenses': 0}
+                
+                if transaction.is_debit:
+                    analytics['monthly_trends'][month_key]['expenses'] += abs(amount)
+                else:
+                    analytics['monthly_trends'][month_key]['income'] += amount
+                
+                # Tag-based breakdowns
+                categories = tags.get('categories', [transaction.category] if transaction.category else ['Miscellaneous'])
+                banks = tags.get('banks', [])
+                accounts = tags.get('accounts', [])
+                
+                # Category breakdown
+                for category in categories:
+                    if category not in analytics['category_breakdown']:
+                        analytics['category_breakdown'][category] = {'income': 0, 'expenses': 0, 'count': 0}
+                    
+                    analytics['category_breakdown'][category]['count'] += 1
+                    if transaction.is_debit:
+                        analytics['category_breakdown'][category]['expenses'] += abs(amount)
+                    else:
+                        analytics['category_breakdown'][category]['income'] += amount
+                
+                # Bank breakdown
+                for bank in banks:
+                    if bank not in analytics['bank_breakdown']:
+                        analytics['bank_breakdown'][bank] = {'income': 0, 'expenses': 0, 'count': 0}
+                    
+                    analytics['bank_breakdown'][bank]['count'] += 1
+                    if transaction.is_debit:
+                        analytics['bank_breakdown'][bank]['expenses'] += abs(amount)
+                    else:
+                        analytics['bank_breakdown'][bank]['income'] += amount
+                
+                # Account breakdown  
+                for account in accounts:
+                    if account not in analytics['account_breakdown']:
+                        analytics['account_breakdown'][account] = {'income': 0, 'expenses': 0, 'count': 0}
+                    
+                    analytics['account_breakdown'][account]['count'] += 1
+                    if transaction.is_debit:
+                        analytics['account_breakdown'][account]['expenses'] += abs(amount)
+                    else:
+                        analytics['account_breakdown'][account]['income'] += amount
+                
+                # Tag combinations for advanced insights
+                if categories and banks:
+                    for category in categories:
+                        for bank in banks:
+                            combo_key = f"{category}|{bank}"
+                            if combo_key not in analytics['tag_combinations']:
+                                analytics['tag_combinations'][combo_key] = {'income': 0, 'expenses': 0, 'count': 0}
+                            
+                            analytics['tag_combinations'][combo_key]['count'] += 1
+                            if transaction.is_debit:
+                                analytics['tag_combinations'][combo_key]['expenses'] += abs(amount)
+                            else:
+                                analytics['tag_combinations'][combo_key]['income'] += amount
+            
+            # Calculate derived metrics
+            analytics['net_balance'] = analytics['total_income'] - analytics['total_expenses']
+            
+            # Top categories by expense amount
+            analytics['top_categories'] = sorted(
+                [{'name': k, **v} for k, v in analytics['category_breakdown'].items()],
+                key=lambda x: x['expenses'],
+                reverse=True
+            )[:10]
+            
+            # Spending by account and category combinations
+            analytics['spending_by_account_and_category'] = [
+                {
+                    'combination': k.replace('|', ' via '),
+                    'category': k.split('|')[0],
+                    'bank': k.split('|')[1],
+                    **v
+                }
+                for k, v in analytics['tag_combinations'].items()
+                if v['expenses'] > 0
+            ]
+            analytics['spending_by_account_and_category'].sort(key=lambda x: x['expenses'], reverse=True)
+            
+            return jsonify(analytics)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-    # Format for chart
-    labels = list(accounts.keys())
-    income_data = [accounts[acc]['income'] for acc in labels]
-    expense_data = [accounts[acc]['expenses'] for acc in labels]
-    
-    return jsonify({
-        'labels': labels,
-        'datasets': [
-            {
-                'label': 'Income',
-                'data': income_data,
-                'backgroundColor': 'rgba(75, 192, 192, 0.6)',
-                'borderColor': 'rgba(75, 192, 192, 1)',
-                'borderWidth': 1
-            },
-            {
-                'label': 'Expenses',
-                'data': expense_data,
-                'backgroundColor': 'rgba(255, 99, 132, 0.6)',
-                'borderColor': 'rgba(255, 99, 132, 1)',
-                'borderWidth': 1
+    @app.route('/api/dashboard/filters', methods=['GET'])
+    def api_dashboard_filters():
+        """Get available filter options from existing tags"""
+        try:
+            # Get all unique tags from transactions
+            transactions = Transaction.query.all()
+            
+            filters = {
+                'categories': set(),
+                'banks': set(),
+                'accounts': set(),
+                'date_range': {'min': None, 'max': None}
             }
-        ]
-    })
+            
+            for transaction in transactions:
+                tags = transaction.get_tags()
+                
+                # Collect unique values
+                for category in tags.get('categories', []):
+                    filters['categories'].add(category)
+                
+                for bank in tags.get('banks', []):
+                    filters['banks'].add(bank)
+                    
+                for account in tags.get('accounts', []):
+                    filters['accounts'].add(account)
+                
+                # Date range
+                if not filters['date_range']['min'] or transaction.date < filters['date_range']['min']:
+                    filters['date_range']['min'] = transaction.date
+                if not filters['date_range']['max'] or transaction.date > filters['date_range']['max']:
+                    filters['date_range']['max'] = transaction.date
+            
+            # Convert sets to sorted lists
+            filters['categories'] = sorted(list(filters['categories']))
+            filters['banks'] = sorted(list(filters['banks']))
+            filters['accounts'] = sorted(list(filters['accounts']))
+            
+            # Format dates
+            if filters['date_range']['min']:
+                filters['date_range']['min'] = filters['date_range']['min'].isoformat()
+            if filters['date_range']['max']:
+                filters['date_range']['max'] = filters['date_range']['max'].isoformat()
+            
+            return jsonify(filters)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
-@app.route('/bulk_update_categories', methods=['POST'])
-def bulk_update_categories():
-    data = request.json
-    transaction_indices = data['transaction_indices']
-    new_category = data['category']
-    
-    try:
-        updated_count = 0
-        for idx in transaction_indices:
-            if idx < len(transactions):
-                transactions[idx]['category'] = new_category
-                updated_count += 1
-        
-        # Save updated transactions
-        with open(TRANSACTION_DB, 'w') as f:
-            json.dump(transactions, f, indent=2)
-        
-        return jsonify({'success': True, 'updated_count': updated_count})
-    except Exception as e:
-        print(f"Error in bulk update: {e}")
-        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app = create_app()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True) 

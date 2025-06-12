@@ -1,99 +1,363 @@
-# Personal Finance Dashboard
+# Personal Finance Dashboard 💰
 
-A web application for analyzing bank statements and tracking personal finances.
+A modern, production-ready personal finance management application built with Flask, PostgreSQL, and deployed on AWS.
 
-## Features
+## 🌟 Features
 
-- Parse bank statements from multiple banks:
-  - Federal Bank
-  - HDFC Bank
-- Extract transactions with metadata
-- Categorize transactions
-- Generate financial reports
+- **Manual Transaction Entry**: Easy-to-use interface for adding income and expenses
+- **Smart Categorization**: Automatic transaction categorization with machine learning
+- **Interactive Dashboard**: Beautiful charts and analytics with Chart.js
+- **Multi-Account Support**: Manage multiple bank accounts and credit cards
+- **Responsive Design**: Works perfectly on desktop and mobile devices
+- **Real-time Updates**: Live dashboard updates without page refreshes
+- **Data Export**: Export transactions to CSV/Excel
+- **Cloud-Ready**: Containerized and ready for AWS deployment
 
-## Development Setup
+## 🏗️ Architecture
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/personal-finance-dashboard.git
-cd personal-finance-dashboard
+### Technology Stack
+
+- **Backend**: Flask 3.1.1 with SQLAlchemy ORM
+- **Database**: PostgreSQL (AWS RDS in production)
+- **Frontend**: Bootstrap 5 + Chart.js + Vanilla JavaScript
+- **Containerization**: Docker with multi-stage builds
+- **Cloud Platform**: AWS (ECS Fargate + RDS + ALB)
+- **Infrastructure as Code**: Terraform
+- **CI/CD**: GitHub Actions
+
+### System Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│  Application    │    │   Load Balancer  │    │   ECS Fargate   │
+│  Load Balancer  │◄──►│      (ALB)       │◄──►│    Cluster      │
+│     (ALB)       │    │                  │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                                         │
+                                                         ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│    ECR          │    │   CloudWatch     │    │   RDS           │
+│  Container      │    │     Logs         │    │  PostgreSQL     │
+│  Registry       │    │                  │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-2. Create and activate a virtual environment:
+## 🚀 Quick Start
+
+### Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd personal-finance-dashboard
+   ```
+
+2. **Run with Docker Compose**
+   ```bash
+   docker-compose up --build
+   ```
+
+3. **Access the application**
+   - Open http://localhost:5000
+   - Start adding transactions using the floating + button
+
+### Manual Setup (Alternative)
+
+1. **Set up Python environment**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements_new.txt
+   ```
+
+2. **Set up PostgreSQL database**
+   ```bash
+   # Install PostgreSQL locally or use Docker
+   docker run --name postgres-finance -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:15
+   ```
+
+3. **Configure environment variables**
+   ```bash
+   cp env.example .env
+   # Edit .env with your database credentials
+   ```
+
+4. **Run the application**
+   ```bash
+   python app_new.py
+   ```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `FLASK_ENV` | Environment (development/production) | No | development |
+| `SECRET_KEY` | Flask secret key | Yes | - |
+| `DATABASE_URL` | PostgreSQL connection string | Yes | - |
+| `DB_USER` | Database username | No | postgres |
+| `DB_PASSWORD` | Database password | Yes | - |
+| `DB_HOST` | Database host | No | localhost |
+| `DB_PORT` | Database port | No | 5432 |
+| `DB_NAME` | Database name | No | personal_finance |
+
+### Database Migration
+
+The application uses Flask-Migrate for database schema management:
+
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Initialize migration repository
+flask db init
+
+# Create migration
+flask db migrate -m "Description"
+
+# Apply migration
+flask db upgrade
 ```
 
-3. Install dependencies:
+## 🌐 Deployment
+
+### AWS Deployment
+
+#### Prerequisites
+
+1. **Install required tools**
+   ```bash
+   # AWS CLI
+   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+   unzip awscliv2.zip
+   sudo ./aws/install
+   
+   # Terraform
+   wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
+   unzip terraform_1.6.0_linux_amd64.zip
+   sudo mv terraform /usr/local/bin/
+   
+   # Docker (if not already installed)
+   sudo apt-get update
+   sudo apt-get install docker.io
+   ```
+
+2. **Configure AWS credentials**
+   ```bash
+   aws configure
+   # Enter your AWS Access Key ID, Secret Access Key, and region
+   ```
+
+#### One-Click Deployment
+
 ```bash
-pip install -r requirements.txt
+# Make deployment script executable
+chmod +x scripts/deploy.sh
+
+# Deploy to staging
+./scripts/deploy.sh staging
+
+# Deploy to production
+./scripts/deploy.sh production
 ```
 
-4. Install system dependencies:
-- On Ubuntu/Debian:
-  ```bash
-  sudo apt-get update
-  sudo apt-get install -y libmupdf-dev
-  ```
-- On macOS:
-  ```bash
-  brew install mupdf
-  ```
-- On Windows:
-  - Download and install MuPDF from https://mupdf.com/releases/
+#### Manual Deployment Steps
 
-## Running Tests
+1. **Deploy Infrastructure**
+   ```bash
+   cd terraform
+   terraform init
+   terraform plan -var="environment=production" -var="db_password=your-secure-password"
+   terraform apply
+   ```
 
-The project uses pytest for testing. To run tests:
+2. **Build and Push Docker Image**
+   ```bash
+   # Get ECR login
+   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
+   
+   # Build and push
+   docker build -t personal-finance .
+   docker tag personal-finance:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/personal-finance:latest
+   docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/personal-finance:latest
+   ```
+
+3. **Update ECS Service**
+   ```bash
+   aws ecs update-service --cluster personal-finance-cluster --service personal-finance-service --force-new-deployment
+   ```
+
+### GitHub Actions CI/CD
+
+The repository includes automated CI/CD pipeline:
+
+1. **Set up GitHub Secrets**
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+
+2. **Push to main branch**
+   ```bash
+   git push origin main
+   ```
+
+The pipeline will automatically:
+- Run tests
+- Build Docker image
+- Push to ECR
+- Deploy to ECS
+- Run database migrations
+
+## 📊 API Documentation
+
+### Endpoints
+
+#### Transactions
+
+- `GET /api/transactions` - List transactions
+- `POST /api/transactions` - Create transaction
+- `PUT /api/transactions/<id>` - Update transaction
+- `DELETE /api/transactions/<id>` - Delete transaction
+
+#### Dashboard
+
+- `GET /api/dashboard/summary` - Get dashboard summary
+- `GET /api/charts/category-distribution` - Category breakdown
+- `GET /api/charts/monthly-trend` - Monthly income/expense trend
+
+#### Example: Create Transaction
+
+```javascript
+POST /api/transactions
+Content-Type: application/json
+
+{
+  "date": "25/12/2024",
+  "description": "Grocery shopping",
+  "amount": 150.75,
+  "is_debit": true,
+  "category": "Food",
+  "account_id": 1,
+  "notes": "Weekly groceries"
+}
+```
+
+## 🧪 Testing
 
 ```bash
 # Run all tests
-python -m pytest tests/ -v
+pytest
 
-# Run specific test files
-python -m pytest tests/test_integration.py -v
-python -m pytest tests/test_federal_bank_parser.py -v
-python -m pytest tests/test_hdfc_parser.py -v
-python -m pytest tests/test_app.py -v
+# Run with coverage
+pytest --cov=app_new
+
+# Run specific test file
+pytest tests/test_transactions.py
 ```
 
-### Test Structure
+## 🔒 Security
 
-- `test_integration.py`: Integration tests using actual PDF files
-- `test_federal_bank_parser.py`: Unit tests for Federal Bank parser
-- `test_hdfc_parser.py`: Unit tests for HDFC parser
-- `test_app.py`: Tests for the web application
+### Production Security Features
 
-Test results are saved in the `tests/test_results` directory and are automatically cleaned up after test execution.
+- **Environment-based configuration**
+- **Database connection encryption**
+- **Secure container runtime**
+- **VPC isolation**
+- **Security group restrictions**
+- **IAM role-based access**
 
-## Contributing
+### Security Checklist
+
+- [ ] Change default secret keys
+- [ ] Use strong database passwords
+- [ ] Enable HTTPS in production
+- [ ] Regular security updates
+- [ ] Monitor CloudWatch logs
+- [ ] Set up AWS CloudTrail
+
+## 📈 Monitoring & Maintenance
+
+### CloudWatch Monitoring
+
+- **Application logs**: `/ecs/personal-finance`
+- **Health checks**: Load balancer health checks
+- **Database monitoring**: RDS CloudWatch metrics
+
+### Backup Strategy
+
+- **Database**: Automated RDS backups (7-day retention)
+- **Application**: Versioned container images in ECR
+
+### Performance Optimization
+
+- **Database indexing**: Indexed on date and category fields
+- **Connection pooling**: SQLAlchemy connection pooling
+- **Static file serving**: Served through CDN (future enhancement)
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch:
-```bash
-git checkout -b feature/your-feature-name
-```
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
-3. Make your changes and commit:
-```bash
-git add .
-git commit -m "Description of your changes"
-```
+### Development Guidelines
 
-4. Push to your fork:
-```bash
-git push origin feature/your-feature-name
-```
+- Follow PEP 8 for Python code
+- Write tests for new features
+- Update documentation
+- Use meaningful commit messages
 
-5. Create a Pull Request
+## 📄 License
 
-All PRs are automatically tested using GitHub Actions. The workflow:
-- Runs on Ubuntu with Python 3.10
-- Installs all dependencies
-- Runs all tests
-- Uploads test results as artifacts
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## License
+## 🆘 Support
 
-[Add your license here]
+### Common Issues
+
+1. **Database connection errors**
+   - Check DATABASE_URL format
+   - Verify PostgreSQL is running
+   - Check network connectivity
+
+2. **Docker build failures**
+   - Update Docker to latest version
+   - Check Dockerfile syntax
+   - Verify base image availability
+
+3. **AWS deployment issues**
+   - Verify AWS credentials
+   - Check IAM permissions
+   - Review CloudWatch logs
+
+### Getting Help
+
+- Check the [Issues](../../issues) page
+- Review CloudWatch logs for errors
+- Check application health endpoint: `/health`
+
+## 🗺️ Roadmap
+
+### Phase 1: Core Features ✅
+- [x] Manual transaction entry
+- [x] Dashboard with charts
+- [x] Database integration
+- [x] Docker containerization
+- [x] AWS deployment
+
+### Phase 2: Enhanced Features (Coming Soon)
+- [ ] User authentication
+- [ ] PDF statement parsing (premium feature)
+- [ ] Mobile app (React Native)
+- [ ] API authentication
+- [ ] Advanced analytics
+
+### Phase 3: Enterprise Features
+- [ ] Multi-tenant support
+- [ ] Advanced reporting
+- [ ] Integration with banks
+- [ ] Machine learning insights
+- [ ] Automated categorization
+
+---
+
+**Made with ❤️ for better financial management** 

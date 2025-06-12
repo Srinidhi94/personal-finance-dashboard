@@ -2,258 +2,836 @@
 
 {% block title %}Transactions - Personal Finance Dashboard{% endblock %}
 
+{% block extra_styles %}
+<style>
+    .transactions-container {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+
+    
+    .filters-card {
+        background: white;
+        border-radius: 10px;
+        border: none;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .filters-header {
+        background-color: #fff;
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 10px 10px 0 0;
+        font-weight: 600;
+    }
+    
+    .filters-header h5 {
+        color: #333;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .transactions-card {
+        background: white;
+        border-radius: 10px;
+        border: none;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .transactions-card-header {
+        background-color: #fff;
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        font-weight: 600;
+    }
+    
+    .transactions-card-header h5 {
+        color: #333;
+        font-weight: 600;
+        font-size: 1.25rem;
+        margin: 0;
+    }
+    
+    .transactions-table {
+        width: 100%;
+        margin: 0;
+    }
+    
+    .transactions-table th {
+        background-color: #fff;
+        color: #666;
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        padding: 0.75rem 1.5rem;
+        border-top: none;
+        border-bottom: 2px solid #eaeaea;
+    }
+    
+    .transactions-table td {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #f2f2f2;
+        vertical-align: middle;
+    }
+    
+    .transactions-table tbody tr:hover {
+        background-color: rgba(52, 152, 219, 0.05);
+    }
+    
+    .description-field {
+        border: 1px solid #dfe6e9;
+        background: white;
+        font-size: 0.9rem;
+        color: #333;
+        padding: 0.65rem 1rem;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        width: 100%;
+        min-width: 200px;
+    }
+    
+    .description-field:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+    }
+    
+    .description-display {
+        padding: 0.5rem;
+        max-width: 250px;
+        word-wrap: break-word;
+    }
+    
+    .description-edit {
+        display: none;
+    }
+    
+    .tags-display {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.375rem;
+        align-items: center;
+        max-width: 250px;
+    }
+    
+    .tags-edit {
+        max-width: 250px;
+    }
+    
+    .tag-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.375rem;
+        align-items: center;
+        position: relative;
+    }
+    
+    .tag-chip {
+        background-color: rgba(52, 152, 219, 0.15);
+        color: #2980b9;
+        padding: 0.25rem 0.75rem;
+        border-radius: 16px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+        transition: all 0.2s ease;
+    }
+    
+    .tag-chip.account-type {
+        background-color: rgba(46, 204, 113, 0.15);
+        color: #27ae60;
+        border-color: rgba(46, 204, 113, 0.3);
+    }
+    
+    .tag-chip .remove-btn {
+        background: none;
+        border: none;
+        color: inherit;
+        font-size: 0.75rem;
+        cursor: pointer;
+        padding: 0;
+        margin: 0;
+        width: 14px;
+        height: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+    }
+    
+    .tag-chip .remove-btn:hover {
+        background-color: rgba(0,0,0,0.1);
+    }
+    
+    .add-tag-btn {
+        background-color: #f8f9fa;
+        border: 1px dashed #adb5bd;
+        color: #6c757d;
+        padding: 0.25rem 0.5rem;
+        border-radius: 16px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .add-tag-btn:hover {
+        background-color: #e9ecef;
+        border-color: #6c757d;
+        color: #495057;
+    }
+    
+    .tag-dropdown {
+        position: absolute;
+        background: white;
+        border: 1px solid #dfe6e9;
+        border-radius: 8px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        max-height: 250px;
+        overflow-y: auto;
+        z-index: 1050;
+        min-width: 200px;
+        max-width: 300px;
+    }
+    
+    .tag-dropdown-item {
+        padding: 0.75rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        color: #333;
+        border-bottom: 1px solid #f2f2f2;
+        transition: all 0.2s ease;
+    }
+    
+    .tag-dropdown-item:hover {
+        background-color: rgba(52, 152, 219, 0.05);
+        color: #3498db;
+    }
+    
+    .tag-dropdown-item:last-child {
+        border-bottom: none;
+    }
+    
+    .amount-positive {
+        color: #27ae60;
+    }
+    
+    .amount-negative {
+        color: #e74c3c;
+    }
+    
+    .bank-badge {
+        background-color: rgba(52, 152, 219, 0.15);
+        color: #2980b9;
+        padding: 0.5em 0.8em;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+    }
+    
+    .action-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .action-menu-btn {
+        background: none;
+        border: none;
+        color: #6c757d;
+        padding: 0.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 1rem;
+    }
+    
+    .action-menu-btn:hover {
+        background-color: #f8f9fa;
+        color: #495057;
+    }
+    
+    .action-menu {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: white;
+        border: 1px solid #dfe6e9;
+        border-radius: 8px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        min-width: 120px;
+        z-index: 1000;
+        display: none;
+    }
+    
+    .action-menu.show {
+        display: block;
+    }
+    
+    .action-menu-item {
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        color: #333;
+        border-bottom: 1px solid #f2f2f2;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .action-menu-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .action-menu-item:last-child {
+        border-bottom: none;
+    }
+    
+    .action-menu-item.danger:hover {
+        background-color: rgba(231, 76, 60, 0.15);
+        color: #e74c3c;
+    }
+    
+    /* Edit mode inline buttons */
+    .edit-actions {
+        display: flex;
+        gap: 0.25rem;
+        align-items: center;
+    }
+    
+    .edit-actions .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .edit-actions .save-btn {
+        background-color: #27ae60;
+        border-color: #27ae60;
+        color: white;
+    }
+    
+    .edit-actions .save-btn:hover {
+        background-color: #229954;
+        border-color: #229954;
+        box-shadow: 0 4px 8px rgba(39, 174, 96, 0.3);
+    }
+    
+    .edit-actions .cancel-btn {
+        background-color: transparent;
+        border-color: #6c757d;
+        color: #6c757d;
+    }
+    
+    .edit-actions .cancel-btn:hover {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        color: white;
+    }
+    
+    .bulk-edit-card {
+        background: white;
+        border-radius: 10px;
+        border: none;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        display: none;
+    }
+    
+    .bulk-edit-header {
+        background-color: #fff;
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 10px 10px 0 0;
+        font-weight: 600;
+    }
+    
+    .bulk-edit-header h5 {
+        color: #333;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    /* Form controls */
+    .form-control, .form-select {
+        border-radius: 8px;
+        padding: 0.65rem 1rem;
+        border: 1px solid #dfe6e9;
+        transition: all 0.2s;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+    }
+    
+    /* Transaction type toggle buttons */
+    .btn-check:checked + .btn-outline-success {
+        background-color: #27ae60;
+        border-color: #27ae60;
+        color: white;
+    }
+    
+    .btn-check:checked + .btn-outline-danger {
+        background-color: #e74c3c;
+        border-color: #e74c3c;
+        color: white;
+    }
+    
+    .btn-outline-success:hover {
+        background-color: #27ae60;
+        border-color: #27ae60;
+        color: white;
+    }
+    
+    .btn-outline-danger:hover {
+        background-color: #e74c3c;
+        border-color: #e74c3c;
+        color: white;
+    }
+    
+    .btn-group .btn {
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-group .btn:first-child {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+    
+    .btn-group .btn:last-child {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="mb-0">Transactions</h2>
-    <div>
-        <button class="btn btn-outline-primary me-2" id="export-btn">
-            <i class="bi bi-download me-2"></i> Export
-        </button>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
-            <i class="bi bi-upload me-2"></i> Upload Statement
-        </button>
-    </div>
-</div>
-
-<!-- Filter Section -->
-<div class="card mb-4">
-    <div class="card-body">
-        <form id="filter-form" class="row g-3">
-            <div class="col-md-3">
-                <label for="filter-category" class="form-label">Category</label>
-                <select class="form-select" id="filter-category" name="category">
-                    <option value="">All Categories</option>
-                    {% for category in categories %}
-                    <option value="{{ category }}">{{ category }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label for="filter-account" class="form-label">Account</label>
-                <select class="form-select" id="filter-account" name="account">
-                    <option value="">All Accounts</option>
-                    {% for account in accounts %}
-                    <option value="{{ account.account_name }}">{{ account.account_name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label for="filter-date-from" class="form-label">From Date</label>
-                <input type="date" class="form-control" id="filter-date-from" name="date_from">
-            </div>
-            <div class="col-md-2">
-                <label for="filter-date-to" class="form-label">To Date</label>
-                <input type="date" class="form-control" id="filter-date-to" name="date_to">
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-filter me-2"></i> Apply Filters
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Bulk Edit Card (Hidden by default) -->
-<div class="card mb-4" id="bulk-edit-card" style="display: none;">
-    <div class="card-header">
-        <h5 class="mb-0">Bulk Edit Categories</h5>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            <div class="col-md-4">
-                <label for="bulk-category" class="form-label">New Category</label>
-                <select class="form-select" id="bulk-category">
-                    {% for category in categories %}
-                    <option value="{{ category }}">{{ category }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <button type="button" class="btn btn-primary me-2" id="apply-bulk-edit">
-                    Apply to Selected
-                </button>
-                <button type="button" class="btn btn-secondary" id="cancel-bulk-edit">
-                    Cancel
-                </button>
-            </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <span class="text-muted" id="selected-count">0 transactions selected</span>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Transactions Table -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Transactions</h5>
+<div class="transactions-container">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Transactions</h2>
         <div>
-            <button class="btn btn-sm btn-outline-primary me-2" id="bulk-edit-btn">
-                <i class="bi bi-pencil-square me-1"></i> Bulk Edit
+            <button class="btn btn-outline-secondary me-2" id="export-btn">
+                <i class="bi bi-download me-2"></i>Export
             </button>
-            <button class="btn btn-sm btn-outline-secondary" id="select-all-btn">
-                <i class="bi bi-check-all me-1"></i> Select All
+            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                <i class="bi bi-upload me-2"></i>Upload Statement
+            </button>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+                <i class="bi bi-plus-circle me-2"></i>Add Transaction
             </button>
         </div>
     </div>
-    <div class="card-body">
+
+    <!-- Filter Section -->
+    <div class="filters-card">
+        <div class="filters-header">
+            <h5>Filters</h5>
+        </div>
+        <div class="p-4">
+            <form method="GET" id="filter-form" class="row g-3">
+                <div class="col-md-2">
+                    <label for="category" class="form-label">Category</label>
+                    <select class="form-select" id="category" name="category">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="account" class="form-label">Account Type</label>
+                    <select class="form-select" id="account" name="account">
+                        <option value="">All Account Types</option>
+                        {% for acc_type in account_types %}
+                        <option value="{{ acc_type }}" {% if filters.account == acc_type %}selected{% endif %}>{{ acc_type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="bank" class="form-label">Bank</label>
+                    <select class="form-select" id="bank" name="bank">
+                        <option value="">All Banks</option>
+                        {% for bank in banks %}
+                        <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="date_from" class="form-label">From Date</label>
+                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ filters.date_from or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="date_to" class="form-label">To Date</label>
+                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ filters.date_to or '' }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-filter me-2"></i>Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bulk Edit Card (Hidden by default) -->
+    <div class="bulk-edit-card" id="bulk-edit-card">
+        <div class="bulk-edit-header">
+            <h5>Bulk Edit Categories</h5>
+        </div>
+        <div class="p-4">
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="bulk-category" class="form-label">New Category</label>
+                    <select class="form-select" id="bulk-category">
+                        {% for cat in categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="button" class="btn btn-primary me-2" id="apply-bulk-edit">
+                        Apply to Selected
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="cancel-bulk-edit">
+                        Cancel
+                    </button>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <span class="text-muted" id="selected-count">0 transactions selected</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="transactions-card">
+        <div class="transactions-card-header d-flex justify-content-between align-items-center">
+            <h5>Transaction Details</h5>
+            <div>
+                <button class="btn btn-outline-secondary me-2" id="bulk-edit-btn">
+                    <i class="bi bi-pencil-square me-1"></i>Bulk Edit
+                </button>
+                <button class="btn btn-outline-secondary" id="select-all-btn">
+                    <i class="bi bi-check-all me-1"></i>Select All
+                </button>
+            </div>
+        </div>
+        
+        {% if transactions and transactions.items %}
         <div class="table-responsive">
-            <table class="table table-hover" id="transactions-table">
+            <table class="transactions-table table">
                 <thead>
                     <tr>
                         <th width="40">
                             <input type="checkbox" id="select-all-checkbox" style="display: none;">
                         </th>
-                        <th>Date</th>
-                        <th>Description</th>
-                        <th>Reference</th>
-                        <th>Category</th>
-                        <th>Account</th>
-                        <th>Amount</th>
-                        <th>Actions</th>
+                        <th style="width: 12%">Date</th>
+                        <th style="width: 30%">Description</th>
+                        <th style="width: 25%">Tags</th>
+                        <th style="width: 15%">Bank</th>
+                        <th style="width: 12%">Amount</th>
+                        <th style="width: 6%">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for transaction in transactions %}
-                    <tr data-id="{{ loop.index0 }}">
+                    {% for transaction in transactions.items %}
+                    <tr data-id="{{ transaction.id }}">
                         <td>
-                            <input type="checkbox" class="transaction-checkbox" value="{{ loop.index0 }}" style="display: none;">
+                            <input type="checkbox" class="transaction-checkbox" value="{{ transaction.id }}" style="display: none;">
                         </td>
                         <td>{{ transaction.date }}</td>
                         <td>
-                            <div style="max-width: 300px; word-wrap: break-word;" class="description-display">
+                            <div class="description-display">
                                 {{ transaction.description if transaction.description else 'No description' }}
                             </div>
-                            <div style="display: none;" class="description-edit">
-                                <input type="text" class="form-control form-control-sm" value="{{ transaction.description }}" />
+                            <div class="description-edit">
+                                <input type="text" class="description-field" value="{{ transaction.description }}" />
+                            </div>
+                            {% if transaction.notes %}
+                            <small class="text-muted d-block">{{ transaction.notes }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- Tags Display Mode (default) -->
+                            <div class="tags-display">
+                                {% set tags = transaction.get_tags() %}
+                                {% set category = 'Other' %}
+                                {% set account_type = 'Savings Account' %}
+                                
+                                {% if tags %}
+                                    {% if tags.get('categories') and tags.get('categories')|length > 0 %}
+                                        {% set category = tags.get('categories')[0] %}
+                                    {% endif %}
+                                    {% if tags.get('account_type') and tags.get('account_type')|length > 0 %}
+                                        {% set account_type = tags.get('account_type')[0] %}
+                                    {% endif %}
+                                {% else %}
+                                    {% if transaction.category %}
+                                        {% set category = transaction.category %}
+                                    {% endif %}
+                                    {% if transaction.account_type %}
+                                        {% set account_type = transaction.account_type %}
+                                    {% endif %}
+                                {% endif %}
+                                
+                                <span class="tag-chip">{{ category }}</span>
+                                <span class="tag-chip account-type">{{ account_type }}</span>
+                            </div>
+                            
+                            <!-- Tags Edit Mode (hidden by default) -->
+                            <div class="tags-edit" style="display: none;">
+                                <div class="tag-container" data-transaction-id="{{ transaction.id }}">
+                                    <span class="tag-chip" data-type="category" data-value="{{ category }}">
+                                        {{ category }}
+                                        <button class="remove-btn" type="button">&times;</button>
+                                    </span>
+                                    
+                                    <span class="tag-chip account-type" data-type="account_type" data-value="{{ account_type }}">
+                                        {{ account_type }}
+                                        <button class="remove-btn" type="button">&times;</button>
+                                    </span>
+                                    
+                                    <button class="add-tag-btn" type="button">
+                                        <i class="bi bi-plus"></i> Add tag
+                                    </button>
+                                </div>
                             </div>
                         </td>
                         <td>
-                            <small class="text-muted">{{ transaction.reference if transaction.reference else '' }}</small>
+                            <span class="bank-badge">{{ transaction.bank or (transaction.account.bank if transaction.account else 'Unknown') }}</span>
                         </td>
                         <td>
-                            <span class="badge bg-light text-dark category-display">{{ transaction.category }}</span>
-                            <select class="form-select form-select-sm category-edit" style="display: none;">
-                                {% for category in categories %}
-                                <option value="{{ category }}" {% if category == transaction.category %}selected{% endif %}>{{ category }}</option>
-                                {% endfor %}
-                            </select>
-                        </td>
-                        <td>
-                            <div>
-                                <span class="badge {% if transaction.account_type == 'credit_card' %}bg-danger{% elif transaction.bank == 'Federal Bank' %}bg-info{% else %}bg-success{% endif %} text-white">
-                                    {{ transaction.bank }}
-                                </span>
-                                <div class="small text-muted mt-1">{{ transaction.account_name }}</div>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="{% if transaction.amount > 0 %}text-success{% else %}text-danger{% endif %}">
-                                {% if transaction.amount > 0 %}
-                                    ₹{{ "{:,.2f}".format(transaction.amount) }}
+                            <span class="{% if transaction.amount > 0 and not transaction.is_debit %}amount-positive{% else %}amount-negative{% endif %}">
+                                {% if transaction.amount > 0 and not transaction.is_debit %}
+                                    +₹{{ "{:,.2f}".format(transaction.amount) }}
                                 {% else %}
                                     -₹{{ "{:,.2f}".format(transaction.amount|abs) }}
                                 {% endif %}
                             </span>
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary edit-btn" data-id="{{ loop.index0 }}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-success save-btn" data-id="{{ loop.index0 }}" style="display: none;">
-                                <i class="bi bi-check"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary cancel-btn" data-id="{{ loop.index0 }}" style="display: none;">
-                                <i class="bi bi-x"></i>
-                            </button>
+                            <!-- Normal mode: 3-dots menu -->
+                            <div class="action-dropdown normal-actions">
+                                <button class="action-menu-btn" type="button">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <div class="action-menu">
+                                    <div class="action-menu-item edit-btn" data-id="{{ transaction.id }}">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </div>
+                                    <div class="action-menu-item danger delete-btn" data-id="{{ transaction.id }}">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Edit mode: inline save/cancel buttons -->
+                            <div class="edit-actions" style="display: none;">
+                                <button class="btn btn-sm btn-success save-btn me-1" data-id="{{ transaction.id }}" title="Save changes">
+                                    <i class="bi bi-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary cancel-btn" data-id="{{ transaction.id }}" title="Cancel editing">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-    </div>
-</div>
 
-<!-- Export Modal -->
-<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Export Transactions</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="export-form">
-                    <div class="mb-3">
-                        <label for="export-format" class="form-label">Format</label>
-                        <select class="form-select" id="export-format" name="format">
-                            <option value="excel">Excel (.xlsx)</option>
-                            <option value="csv">CSV</option>
-                        </select>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="confirm-export">Export</button>
-            </div>
+        <!-- Pagination -->
+        {% if transactions.pages > 1 %}
+        <div class="p-3">
+            <nav aria-label="Transactions pagination">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if transactions.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('transactions', page=transactions.prev_num, **filters) }}">Previous</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for page_num in transactions.iter_pages() %}
+                        {% if page_num %}
+                            {% if page_num != transactions.page %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('transactions', page=page_num, **filters) }}">{{ page_num }}</a>
+                            </li>
+                            {% else %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if transactions.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('transactions', page=transactions.next_num, **filters) }}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
         </div>
+        {% endif %}
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox display-1 text-muted"></i>
+            <p class="mt-3 text-muted">No transactions found.</p>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+                <i class="bi bi-plus-circle me-2"></i> Add Your First Transaction
+            </button>
+        </div>
+        {% endif %}
     </div>
 </div>
 
 <!-- Upload Modal -->
-<div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Upload Bank Statement</h5>
+                <h5 class="modal-title" id="uploadModalLabel">Upload Bank Statement</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle-fill me-2"></i> Upload PDF statements from your bank. The system will automatically process and categorize transactions.
-                </div>
-
-                <form action="/upload" method="post" enctype="multipart/form-data">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="modal-body">
                     <div class="mb-3">
                         <label for="bank" class="form-label">Bank</label>
-                        <select class="form-select" id="bank" name="bank" onchange="updateAccountTypeOptions()">
+                        <select class="form-select" id="bank" name="bank" required>
                             <option value="">Select Bank</option>
-                            <option value="HDFC">HDFC Bank</option>
-                            <option value="Federal Bank">Federal Bank</option>
-                            <option value="AMEX">American Express</option>
-                            <option value="Other">Other</option>
+                            {% for bank in banks %}
+                            <option value="{{ bank }}">{{ bank }}</option>
+                            {% endfor %}
                         </select>
                     </div>
-
                     <div class="mb-3">
                         <label for="account_type" class="form-label">Account Type</label>
-                        <select class="form-select" id="account_type" name="account_type" onchange="updateAccountNameOptions()">
+                        <select class="form-select" id="account_type" name="account_type" required>
                             <option value="">Select Account Type</option>
+                            {% for acc_type in account_types %}
+                            <option value="{{ acc_type }}">{{ acc_type }}</option>
+                            {% endfor %}
                         </select>
                     </div>
-
                     <div class="mb-3">
-                        <label for="account_name" class="form-label">Account Name</label>
-                        <select class="form-select" id="account_name" name="account_name">
-                            <option value="">Select Account</option>
-                        </select>
+                        <label for="file" class="form-label">Bank Statement File</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.csv,.xlsx,.xls" required>
+                        <div class="form-text">Supported formats: PDF, CSV, Excel</div>
                     </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload & Review</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
-                    <div class="mb-3">
-                        <label for="file" class="form-label">Statement File</label>
-                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.csv,.txt">
-                    </div>
-
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-cloud-upload me-2"></i> Upload and Process
-                        </button>
-                    </div>
-                </form>
+<!-- Add Transaction Modal -->
+<div class="modal fade" id="addTransactionModal" tabindex="-1" aria-labelledby="addTransactionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addTransactionModalLabel">Add Manual Transaction</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <form id="addTransactionForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="transaction_bank" class="form-label">Bank</label>
+                        <select class="form-select" id="transaction_bank" name="bank" required>
+                            <option value="">Select Bank</option>
+                            {% for bank in banks %}
+                            <option value="{{ bank }}">{{ bank }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_account_type" class="form-label">Account Type</label>
+                        <select class="form-select" id="transaction_account_type" name="account_type" required>
+                            <option value="">Select Account Type</option>
+                            {% for acc_type in account_types %}
+                            <option value="{{ acc_type }}">{{ acc_type }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="transaction_date" name="date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="transaction_description" name="description" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Transaction Type</label>
+                        <div class="btn-group w-100" role="group" aria-label="Transaction type">
+                            <input type="radio" class="btn-check" name="transaction_type" id="type_income" value="income" autocomplete="off">
+                            <label class="btn btn-outline-success" for="type_income">
+                                <i class="bi bi-plus-circle me-2"></i>Income
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="transaction_type" id="type_expense" value="expense" autocomplete="off" checked>
+                            <label class="btn btn-outline-danger" for="type_expense">
+                                <i class="bi bi-dash-circle me-2"></i>Expense
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_amount" class="form-label">Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">₹</span>
+                            <input type="number" step="0.01" min="0" class="form-control" id="transaction_amount" name="amount" required placeholder="0.00">
+                        </div>
+                        <div class="form-text">Enter the amount (always positive)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transaction_category" class="form-label">Category</label>
+                        <select class="form-select" id="transaction_category" name="category">
+                            <option value="">Auto-categorize</option>
+                            <optgroup label="Income Categories" id="income_categories_group" style="display: none;">
+                                {% for category in income_categories %}
+                                <option value="{{ category }}">{{ category }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="Expense Categories" id="expense_categories_group">
+                                {% for category in expense_categories %}
+                                <option value="{{ category }}">{{ category }}</option>
+                                {% endfor %}
+                            </optgroup>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Transaction</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -261,283 +839,534 @@
 
 {% block extra_scripts %}
 <script>
-    // Handle edit transaction
-    const editButtons = document.querySelectorAll('.edit-btn');
-    const saveButtons = document.querySelectorAll('.save-btn');
-    const cancelButtons = document.querySelectorAll('.cancel-btn');
-    
-    editButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            const row = document.querySelector(`tr[data-id="${id}"]`);
-            
-            // Hide display elements, show edit elements
-            row.querySelector('.category-display').style.display = 'none';
-            row.querySelector('.category-edit').style.display = 'block';
-            row.querySelector('.description-display').style.display = 'none';
-            row.querySelector('.description-edit').style.display = 'block';
-            
-            // Hide edit button, show save and cancel buttons
-            this.style.display = 'none';
-            row.querySelector('.save-btn').style.display = 'inline-block';
-            row.querySelector('.cancel-btn').style.display = 'inline-block';
-        });
-    });
-    
-    saveButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            const row = document.querySelector(`tr[data-id="${id}"]`);
-            const select = row.querySelector('.category-edit');
-            const newCategory = select.value;
-            const descriptionInput = row.querySelector('.description-edit input');
-            const newDescription = descriptionInput.value;
-            
-            // Send update to server
-            fetch('/update_transaction', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    transaction_idx: parseInt(id),
-                    category: newCategory,
-                    description: newDescription
-                }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Update display
-                    const categoryDisplay = row.querySelector('.category-display');
-                    categoryDisplay.textContent = newCategory;
-                    
-                    const descriptionDisplay = row.querySelector('.description-display');
-                    descriptionDisplay.textContent = newDescription || 'No description';
-                    
-                    // Show display elements, hide edit elements
-                    categoryDisplay.style.display = 'inline-block';
-                    select.style.display = 'none';
-                    descriptionDisplay.style.display = 'block';
-                    row.querySelector('.description-edit').style.display = 'none';
-                    
-                    // Show edit button, hide save and cancel buttons
-                    row.querySelector('.edit-btn').style.display = 'inline-block';
-                    row.querySelector('.save-btn').style.display = 'none';
-                    row.querySelector('.cancel-btn').style.display = 'none';
-                }
-            });
-        });
-    });
-    
-    cancelButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            const row = document.querySelector(`tr[data-id="${id}"]`);
-            
-            // Show display elements, hide edit elements
-            row.querySelector('.category-display').style.display = 'inline-block';
-            row.querySelector('.category-edit').style.display = 'none';
-            row.querySelector('.description-display').style.display = 'block';
-            row.querySelector('.description-edit').style.display = 'none';
-            
-            // Show edit button, hide save and cancel buttons
-            row.querySelector('.edit-btn').style.display = 'inline-block';
-            row.querySelector('.save-btn').style.display = 'none';
-            row.querySelector('.cancel-btn').style.display = 'none';
-        });
-    });
-    
-    // Export functionality
-    document.getElementById('export-btn').addEventListener('click', function() {
-        const exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
-        exportModal.show();
-    });
-    
-    document.getElementById('confirm-export').addEventListener('click', function() {
-        const format = document.getElementById('export-format').value;
-        window.location.href = `/export?format=${format}`;
-    });
-    
-    // Account type options
-    function updateAccountTypeOptions() {
-        const bank = document.getElementById('bank').value;
-        const accountTypeSelect = document.getElementById('account_type');
+// Available tags (excluding banks - banks are handled separately in Bank column)
+const availableTags = {
+    expense: ['Food', 'Gifts', 'Health/medical', 'Home', 'Transportation', 'Personal', 'Pets', 'Family', 'Travel', 'Debt', 'Other', 'Rent', 'Credit Card', 'Alcohol', 'Consumables', 'Investments'],
+    income: ['Savings', 'Paycheck', 'Bonus', 'Interest', 'Splitwise', 'RSU'],
+    account_type: ['Savings Account', 'Credit Card']
+};
+
+// Action menu handling
+document.addEventListener('click', function(e) {
+    // Handle action menu toggle
+    if (e.target.closest('.action-menu-btn')) {
+        e.stopPropagation();
+        const menu = e.target.closest('.action-dropdown').querySelector('.action-menu');
         
-        // Reset options
-        accountTypeSelect.innerHTML = '<option value="">Select Account Type</option>';
+        // Close all other menus
+        document.querySelectorAll('.action-menu.show').forEach(m => {
+            if (m !== menu) m.classList.remove('show');
+        });
         
-        if (bank === 'HDFC') {
-            accountTypeSelect.innerHTML += `
-                <option value="savings">Savings Account</option>
-                <option value="credit_card">Credit Card</option>
-                <option value="current">Current Account</option>
-            `;
-        } else if (bank === 'AMEX') {
-            accountTypeSelect.innerHTML += `
-                <option value="credit_card">Credit Card</option>
-            `;
-        } else {
-            accountTypeSelect.innerHTML += `
-                <option value="savings">Savings Account</option>
-                <option value="credit_card">Credit Card</option>
-                <option value="current">Current Account</option>
-            `;
-        }
-        
-        updateAccountNameOptions();
+        menu.classList.toggle('show');
+        return;
     }
     
-    function updateAccountNameOptions() {
-        const bank = document.getElementById('bank').value;
-        const accountType = document.getElementById('account_type').value;
-        const accountNameSelect = document.getElementById('account_name');
+    // Handle tag removal (only in edit mode)
+    if (e.target.classList.contains('remove-btn')) {
+        const row = e.target.closest('tr');
+        const tagsEdit = row.querySelector('.tags-edit');
         
-        // Reset options
-        accountNameSelect.innerHTML = '<option value="">Select Account</option>';
-        
-        if (bank === 'HDFC' && accountType === 'credit_card') {
-            accountNameSelect.innerHTML += `
-                <option value="HDFC Credit Card">HDFC Credit Card</option>
-            `;
-        } else if (bank === 'HDFC' && accountType === 'savings') {
-            accountNameSelect.innerHTML += `
-                <option value="HDFC Savings Account">HDFC Savings Account</option>
-            `;
-        } else if (bank === 'Federal Bank' && accountType === 'savings') {
-            accountNameSelect.innerHTML += `
-                <option value="Federal Bank Savings Account">Federal Bank Savings Account</option>
-            `;
-        } else if (bank === 'AMEX' && accountType === 'credit_card') {
-            accountNameSelect.innerHTML += `
-                <option value="AMEX Credit Card">AMEX Credit Card</option>
-            `;
-        } else if (bank && accountType) {
-            accountNameSelect.innerHTML += `
-                <option value="${bank} ${accountType}">${bank} ${accountType.replace('_', ' ')}</option>
-            `;
+        // Only allow tag removal if we're in edit mode
+        if (tagsEdit && tagsEdit.style.display !== 'none') {
+            removeTag(e.target);
         }
+        return;
     }
-
-    // Bulk edit functionality
-    let bulkEditMode = false;
-
-    document.getElementById('bulk-edit-btn').addEventListener('click', function() {
-        bulkEditMode = !bulkEditMode;
+    
+    // Handle add tag button (only in edit mode)
+    if (e.target.closest('.add-tag-btn')) {
+        const row = e.target.closest('tr');
+        const tagsEdit = row.querySelector('.tags-edit');
         
-        if (bulkEditMode) {
-            // Show checkboxes and bulk edit card
-            document.querySelectorAll('.transaction-checkbox').forEach(cb => cb.style.display = 'block');
-            document.getElementById('select-all-checkbox').style.display = 'block';
-            document.getElementById('bulk-edit-card').style.display = 'block';
-            this.innerHTML = '<i class="bi bi-x me-1"></i> Cancel Bulk Edit';
-            this.classList.remove('btn-outline-primary');
-            this.classList.add('btn-outline-danger');
-        } else {
-            // Hide checkboxes and bulk edit card
-            document.querySelectorAll('.transaction-checkbox').forEach(cb => {
-                cb.style.display = 'none';
-                cb.checked = false;
-            });
-            document.getElementById('select-all-checkbox').style.display = 'none';
-            document.getElementById('bulk-edit-card').style.display = 'none';
-            this.innerHTML = '<i class="bi bi-pencil-square me-1"></i> Bulk Edit';
-            this.classList.remove('btn-outline-danger');
-            this.classList.add('btn-outline-primary');
-            updateSelectedCount();
+        // Only allow tag editing if we're in edit mode
+        if (tagsEdit && tagsEdit.style.display !== 'none') {
+            showTagDropdown(e.target.closest('.add-tag-btn'));
         }
-    });
-
-    // Select all functionality
-    document.getElementById('select-all-btn').addEventListener('click', function() {
-        if (!bulkEditMode) {
-            document.getElementById('bulk-edit-btn').click(); // Enable bulk edit mode first
+        return;
+    }
+    
+    // Handle action menu item clicks
+    if (e.target.closest('.action-menu-item')) {
+        const item = e.target.closest('.action-menu-item');
+        const menu = item.closest('.action-menu');
+        const transactionId = item.dataset.id;
+        
+        menu.classList.remove('show');
+        
+        // Handle different actions
+        if (item.classList.contains('edit-btn')) {
+            editTransaction(transactionId);
+        } else if (item.classList.contains('delete-btn')) {
+            deleteTransaction(transactionId);
         }
-        
-        const checkboxes = document.querySelectorAll('.transaction-checkbox');
-        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-        
-        checkboxes.forEach(cb => cb.checked = !allChecked);
-        document.getElementById('select-all-checkbox').checked = !allChecked;
-        updateSelectedCount();
+        return;
+    }
+    
+    // Handle inline save/cancel button clicks
+    if (e.target.closest('.save-btn')) {
+        const btn = e.target.closest('.save-btn');
+        const transactionId = btn.dataset.id;
+        saveTransaction(transactionId);
+        return;
+    }
+    
+    if (e.target.closest('.cancel-btn')) {
+        const btn = e.target.closest('.cancel-btn');
+        const transactionId = btn.dataset.id;
+        cancelEdit(transactionId);
+        return;
+    }
+    
+    // Close all menus when clicking outside
+    document.querySelectorAll('.action-menu.show').forEach(menu => {
+        menu.classList.remove('show');
     });
     
-    // Select all checkbox functionality
-    document.getElementById('select-all-checkbox').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.transaction-checkbox');
-        checkboxes.forEach(cb => cb.checked = this.checked);
-        updateSelectedCount();
+    // Close tag dropdowns when clicking outside
+    document.querySelectorAll('.tag-dropdown').forEach(dropdown => {
+        dropdown.remove();
     });
+});
 
-    // Double-click to edit description
-    document.querySelectorAll('.description-display').forEach(display => {
-        display.addEventListener('dblclick', function() {
-            const row = this.closest('tr');
-            const id = row.getAttribute('data-id');
+function showTagDropdown(button) {
+    const container = button.parentElement;
+    const transactionId = container.dataset.transactionId;
+    
+    // Remove existing dropdown
+    document.querySelectorAll('.tag-dropdown').forEach(d => d.remove());
+    
+    // Create dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'tag-dropdown';
+    dropdown.style.position = 'absolute';
+    dropdown.style.top = (button.offsetTop + button.offsetHeight + 5) + 'px';
+    dropdown.style.left = button.offsetLeft + 'px';
+    
+    // Get existing tags
+    const existingTags = Array.from(container.querySelectorAll('.tag-chip'))
+        .map(tag => tag.dataset.value);
+    
+    // Add all available tags
+    const allTags = [...availableTags.expense, ...availableTags.income, ...availableTags.account_type];
+    allTags.forEach(tag => {
+        if (!existingTags.includes(tag)) {
+            const item = document.createElement('div');
+            item.className = 'tag-dropdown-item';
+            item.textContent = tag;
+            item.onclick = () => addTag(container, tag);
+            dropdown.appendChild(item);
+        }
+    });
+    
+    container.appendChild(dropdown);
+}
+
+function addTag(container, tagValue) {
+    const transactionId = container.dataset.transactionId;
+    
+    // Determine tag type
+    let tagType = 'category';
+    let tagClass = 'tag-chip';
+    if (availableTags.account_type.includes(tagValue)) {
+        tagType = 'account_type';
+        tagClass = 'tag-chip account-type';
+    }
+    
+    // Create tag element
+    const tag = document.createElement('span');
+    tag.className = tagClass;
+    tag.dataset.type = tagType;
+    tag.dataset.value = tagValue;
+    tag.innerHTML = `${tagValue} <button class="remove-btn" type="button">&times;</button>`;
+    
+    // Insert before add button
+    const addButton = container.querySelector('.add-tag-btn');
+    container.insertBefore(tag, addButton);
+    
+    // Remove dropdown
+    document.querySelectorAll('.tag-dropdown').forEach(d => d.remove());
+    
+    // Update transaction via API
+    updateTransactionTags(transactionId, container);
+}
+
+function removeTag(removeButton) {
+    const tag = removeButton.parentElement;
+    const container = tag.parentElement;
+    const transactionId = container.dataset.transactionId;
+    
+    tag.remove();
+    updateTransactionTags(transactionId, container);
+}
+
+function updateTransactionTags(transactionId, container) {
+    const tags = Array.from(container.querySelectorAll('.tag-chip'));
+    
+    // Update categories and account types
+    const categories = tags.filter(tag => tag.dataset.type === 'category')
+        .map(tag => tag.dataset.value);
+    const accountTypes = tags.filter(tag => tag.dataset.type === 'account_type')
+        .map(tag => tag.dataset.value);
+    
+    // Send structured tags
+    const tagsData = {
+        categories: categories,
+        account_type: accountTypes
+    };
+    
+    fetch(`/api/transactions/${transactionId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            tags: tagsData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.error) {
+            console.log('Tags updated successfully');
+        } else {
+            console.error('Error updating tags:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+// Transaction editing functions
+function editTransaction(transactionId) {
+    const row = document.querySelector(`tr[data-id="${transactionId}"]`);
+    const descDisplay = row.querySelector('.description-display');
+    const descEdit = row.querySelector('.description-edit');
+    const tagsDisplay = row.querySelector('.tags-display');
+    const tagsEdit = row.querySelector('.tags-edit');
+    const normalActions = row.querySelector('.normal-actions');
+    const editActions = row.querySelector('.edit-actions');
+    
+    // Switch to edit mode for both description and tags
+    descDisplay.style.display = 'none';
+    descEdit.style.display = 'block';
+    tagsDisplay.style.display = 'none';
+    tagsEdit.style.display = 'block';
+    
+    // Switch action buttons
+    normalActions.style.display = 'none';
+    editActions.style.display = 'flex';
+    
+    // Close any open action menus
+    document.querySelectorAll('.action-menu.show').forEach(menu => {
+        menu.classList.remove('show');
+    });
+}
+
+function saveTransaction(transactionId) {
+    const row = document.querySelector(`tr[data-id="${transactionId}"]`);
+    const descInput = row.querySelector('.description-edit input');
+    const newDescription = descInput.value;
+    
+    // Get current tags from edit mode
+    const tagContainer = row.querySelector('.tag-container');
+    const tags = Array.from(tagContainer.querySelectorAll('.tag-chip'));
+    const categories = tags.filter(tag => tag.dataset.type === 'category')
+        .map(tag => tag.dataset.value);
+    const accountTypes = tags.filter(tag => tag.dataset.type === 'account_type')
+        .map(tag => tag.dataset.value);
+    
+    const tagsData = {
+        categories: categories,
+        account_type: accountTypes
+    };
+    
+    // Update via API
+    fetch(`/api/transactions/${transactionId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            description: newDescription,
+            tags: tagsData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.error) {
+            // Update description display
+            const descDisplay = row.querySelector('.description-display');
+            descDisplay.textContent = newDescription;
             
-            // Toggle to edit mode
-            this.style.display = 'none';
-            row.querySelector('.description-edit').style.display = 'block';
+            // Update tags display
+            const tagsDisplay = row.querySelector('.tags-display');
+            tagsDisplay.innerHTML = '';
             
-            // If not already in edit mode, switch to it
-            if (row.querySelector('.edit-btn').style.display !== 'none') {
-                row.querySelector('.edit-btn').click();
+            // Add category tag
+            if (categories.length > 0) {
+                const categorySpan = document.createElement('span');
+                categorySpan.className = 'tag-chip';
+                categorySpan.textContent = categories[0];
+                tagsDisplay.appendChild(categorySpan);
             }
+            
+            // Add account type tag
+            if (accountTypes.length > 0) {
+                const accountSpan = document.createElement('span');
+                accountSpan.className = 'tag-chip account-type';
+                accountSpan.textContent = accountTypes[0];
+                tagsDisplay.appendChild(accountSpan);
+            }
+            
+            // Switch back to display mode
+            exitEditMode(row);
+        } else {
+            alert('Error updating transaction: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating transaction: ' + error.message);
+    });
+}
+
+function cancelEdit(transactionId) {
+    const row = document.querySelector(`tr[data-id="${transactionId}"]`);
+    const descInput = row.querySelector('.description-edit input');
+    const descDisplay = row.querySelector('.description-display');
+    
+    // Reset input to original value
+    descInput.value = descDisplay.textContent;
+    
+    // Reset tags to original values by reloading the page section
+    // This ensures we don't have stale tag state
+    location.reload();
+}
+
+function exitEditMode(row) {
+    const descDisplay = row.querySelector('.description-display');
+    const descEdit = row.querySelector('.description-edit');
+    const tagsDisplay = row.querySelector('.tags-display');
+    const tagsEdit = row.querySelector('.tags-edit');
+    const normalActions = row.querySelector('.normal-actions');
+    const editActions = row.querySelector('.edit-actions');
+    
+    // Switch back to display mode for both description and tags
+    descDisplay.style.display = 'block';
+    descEdit.style.display = 'none';
+    tagsDisplay.style.display = 'flex';
+    tagsEdit.style.display = 'none';
+    
+    // Switch action buttons back
+    normalActions.style.display = 'block';
+    editActions.style.display = 'none';
+    
+    // Close any open tag dropdowns
+    document.querySelectorAll('.tag-dropdown').forEach(dropdown => {
+        dropdown.remove();
+    });
+}
+
+function deleteTransaction(transactionId) {
+    if (confirm('Are you sure you want to delete this transaction?')) {
+        fetch(`/api/transactions/${transactionId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.error) {
+                // Remove row from table
+                const row = document.querySelector(`tr[data-id="${transactionId}"]`);
+                row.remove();
+            } else {
+                alert('Error deleting transaction: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting transaction: ' + error.message);
         });
-    });
-
-    // Update selected count
-    function updateSelectedCount() {
-        const selectedCount = document.querySelectorAll('.transaction-checkbox:checked').length;
-        document.getElementById('selected-count').textContent = `${selectedCount} transactions selected`;
     }
+}
 
-    // Listen for checkbox changes
-    document.querySelectorAll('.transaction-checkbox').forEach(cb => {
-        cb.addEventListener('change', updateSelectedCount);
+// Upload form handling
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Uploading...';
+    submitBtn.disabled = true;
+    
+    fetch('/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal and redirect to review page
+            bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+            window.location.href = data.redirect_url;
+        } else {
+            alert('Error: ' + (data.error || 'Upload failed'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Upload failed: ' + error.message);
+    })
+    .finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
     });
+});
 
-    // Apply bulk edit
-    document.getElementById('apply-bulk-edit').addEventListener('click', function() {
-        const selectedTransactions = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
-        const newCategory = document.getElementById('bulk-category').value;
+// Add transaction form handling
+document.getElementById('addTransactionForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData);
+    
+    // Handle transaction type and amount
+    const transactionType = data.transaction_type;
+    let amount = parseFloat(data.amount);
+    
+    // Make amount negative for expenses
+    if (transactionType === 'expense') {
+        amount = -Math.abs(amount);
+    } else {
+        amount = Math.abs(amount);
+    }
+    
+    // Format date properly (YYYY-MM-DD)
+    const dateInput = data.date;
+    
+    // Prepare the final data object
+    const transactionData = {
+        bank: data.bank,
+        account_type: data.account_type,
+        date: dateInput, // Keep the date as is from the input
+        description: data.description,
+        amount: amount,
+        category: data.category || null,
+        transaction_type: transactionType,
+        is_debit: transactionType === 'expense' // Set is_debit based on transaction type
+    };
+    
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Adding...';
+    submitBtn.disabled = true;
+    
+    fetch('/api/transactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transactionData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.error) {
+            // Close modal and reload page
+            bootstrap.Modal.getInstance(document.getElementById('addTransactionModal')).hide();
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding transaction: ' + error.message);
+    })
+    .finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+});
+
+// Set today's date as default
+document.getElementById('transaction_date').valueAsDate = new Date();
+
+// Handle transaction type change to show/hide appropriate categories
+document.addEventListener('change', function(e) {
+    if (e.target.name === 'transaction_type') {
+        const incomeGroup = document.getElementById('income_categories_group');
+        const expenseGroup = document.getElementById('expense_categories_group');
+        const categorySelect = document.getElementById('transaction_category');
         
-        if (selectedTransactions.length === 0) {
-            alert('Please select at least one transaction');
-            return;
+        if (e.target.value === 'income') {
+            incomeGroup.style.display = 'block';
+            expenseGroup.style.display = 'none';
+        } else {
+            incomeGroup.style.display = 'none';
+            expenseGroup.style.display = 'block';
         }
         
-        if (confirm(`Are you sure you want to change ${selectedTransactions.length} transactions to category "${newCategory}"?`)) {
-            // Send bulk update request
-            fetch('/bulk_update_categories', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    transaction_indices: selectedTransactions,
-                    category: newCategory
-                }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(`Successfully updated ${selectedTransactions.length} transactions`);
-                    location.reload();
-                } else {
-                    alert('Failed to update transactions');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Failed to update transactions');
-            });
-        }
-    });
+        // Reset category selection
+        categorySelect.value = '';
+    }
+});
 
-    // Cancel bulk edit
-    document.getElementById('cancel-bulk-edit').addEventListener('click', function() {
-        document.getElementById('bulk-edit-btn').click();
+// Bulk editing functionality
+document.getElementById('bulk-edit-btn').addEventListener('click', function() {
+    const checkboxes = document.querySelectorAll('.transaction-checkbox');
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const bulkEditCard = document.getElementById('bulk-edit-card');
+    
+    // Show checkboxes and bulk edit card
+    checkboxes.forEach(cb => cb.style.display = 'block');
+    selectAllCheckbox.style.display = 'block';
+    bulkEditCard.style.display = 'block';
+    
+    // Update selected count
+    updateSelectedCount();
+});
+
+document.getElementById('cancel-bulk-edit').addEventListener('click', function() {
+    const checkboxes = document.querySelectorAll('.transaction-checkbox');
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const bulkEditCard = document.getElementById('bulk-edit-card');
+    
+    // Hide checkboxes and bulk edit card
+    checkboxes.forEach(cb => {
+        cb.style.display = 'none';
+        cb.checked = false;
     });
+    selectAllCheckbox.style.display = 'none';
+    selectAllCheckbox.checked = false;
+    bulkEditCard.style.display = 'none';
+});
+
+document.getElementById('select-all-btn').addEventListener('click', function() {
+    const checkboxes = document.querySelectorAll('.transaction-checkbox');
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+    selectAllCheckbox.checked = !allChecked;
+    
+    updateSelectedCount();
+});
+
+// Update selected count
+function updateSelectedCount() {
+    const checked = document.querySelectorAll('.transaction-checkbox:checked').length;
+    document.getElementById('selected-count').textContent = `${checked} transactions selected`;
+}
+
+// Listen for checkbox changes
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('transaction-checkbox')) {
+        updateSelectedCount();
+    }
+});
 </script>
-{% endblock %}
+{% endblock %} 
