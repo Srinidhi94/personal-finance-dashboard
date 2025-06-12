@@ -2,7 +2,7 @@ import os
 from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory, flash, session
 from flask_migrate import Migrate
 from datetime import datetime, timedelta
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, or_
 from werkzeug.utils import secure_filename
 
 from models import db, Transaction, Account, Category, User
@@ -119,13 +119,30 @@ def register_routes(app):
             query = Transaction.query
             
             if category_filter:
-                query = query.filter(Transaction.category == category_filter)
+                # Filter by tags JSON field or category column
+                # Use LIKE pattern to match category in JSON array
+                query = query.filter(
+                    or_(
+                        Transaction.tags.like(f'%"categories":%[%"{category_filter}"%]%'),
+                        Transaction.category == category_filter
+                    )
+                )
+            
+            # Always join Account table for filtering
+            query = query.outerjoin(Account)
             
             if account_filter:
-                query = query.join(Account).filter(Account.account_type == account_filter)
+                # Filter by tags JSON field or account table
+                # Check both the tags.account_type array and the Account table
+                query = query.filter(
+                    or_(
+                        Transaction.tags.like(f'%"account_type":%[%"{account_filter}"%]%'),
+                        Account.account_type == account_filter
+                    )
+                )
                 
             if bank_filter:
-                query = query.join(Account).filter(Account.bank == bank_filter)
+                query = query.filter(Account.bank == bank_filter)
             
             if date_from:
                 date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
