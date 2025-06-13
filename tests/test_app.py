@@ -51,6 +51,9 @@ def sample_accounts(app):
 def sample_transactions(app, sample_accounts):
     """Create sample transactions for testing."""
     with app.app_context():
+        # Re-query accounts to ensure they're attached to the current session
+        accounts = Account.query.all()
+        
         transactions = [
             Transaction(
                 date=date(2024, 1, 15),
@@ -58,7 +61,7 @@ def sample_transactions(app, sample_accounts):
                 amount=150.00,
                 category='Food',
                 tags='{"categories": ["Food"], "account_type": ["Savings Account"]}',
-                account_id=sample_accounts[0].id,
+                account_id=accounts[0].id,
                 is_debit=True
             ),
             Transaction(
@@ -67,7 +70,7 @@ def sample_transactions(app, sample_accounts):
                 amount=50000.00,
                 category='Paycheck',
                 tags='{"categories": ["Paycheck"], "account_type": ["Savings Account"]}',
-                account_id=sample_accounts[0].id,
+                account_id=accounts[0].id,
                 is_debit=False
             ),
             Transaction(
@@ -76,7 +79,7 @@ def sample_transactions(app, sample_accounts):
                 amount=800.00,
                 category='Food',
                 tags='{"categories": ["Food"], "account_type": ["Credit Card"]}',
-                account_id=sample_accounts[1].id,
+                account_id=accounts[1].id,
                 is_debit=True
             ),
         ]
@@ -102,7 +105,7 @@ class TestAppCreation:
         
         data = json.loads(response.data)
         assert data['status'] == 'healthy'
-        assert 'timestamp' in data
+        assert 'database' in data
 
 
 class TestWebPages:
@@ -113,6 +116,17 @@ class TestWebPages:
         response = client.get('/')
         assert response.status_code == 200
         assert b'Personal Finance Dashboard' in response.data
+        assert b'Recent Transactions' in response.data
+        
+    def test_index_page_with_transactions(self, client, sample_transactions):
+        """Test dashboard page with transaction data."""
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'Personal Finance Dashboard' in response.data
+        assert b'Recent Transactions' in response.data
+        assert b'transactions-table' in response.data
+        assert b'tag-chip' in response.data
+        assert b'bank-text' in response.data
     
     def test_transactions_page(self, client):
         """Test that the transactions page loads successfully."""
@@ -213,6 +227,65 @@ class TestTransactionAPI:
         
         data = json.loads(response.data)
         assert 'message' in data
+    
+    def test_bulk_edit_transactions(self, client, sample_transactions):
+        """Test bulk editing transactions."""
+        with client.application.app_context():
+            # Get fresh transaction IDs from the database
+            transactions = Transaction.query.limit(2).all()
+            transaction_ids = [t.id for t in transactions]
+            
+            bulk_edit_data = {
+                'transaction_ids': transaction_ids,
+                'category': 'Updated Category'
+            }
+            
+            response = client.post('/api/transactions/bulk-edit',
+                                  data=json.dumps(bulk_edit_data),
+                                  content_type='application/json')
+            
+            assert response.status_code == 200
+            
+            data = json.loads(response.data)
+            assert 'updated_count' in data
+            assert data['updated_count'] == 2
+            
+            # Verify transactions were updated
+            updated_transactions = Transaction.query.filter(Transaction.id.in_(transaction_ids)).all()
+            for transaction in updated_transactions:
+                assert transaction.category == 'Updated Category'
+    
+    def test_bulk_edit_no_transactions(self, client):
+        """Test bulk edit with no transactions selected."""
+        bulk_edit_data = {
+            'transaction_ids': [],
+            'category': 'Updated Category'
+        }
+        
+        response = client.post('/api/transactions/bulk-edit',
+                              data=json.dumps(bulk_edit_data),
+                              content_type='application/json')
+        
+        assert response.status_code == 400
+        
+        data = json.loads(response.data)
+        assert 'error' in data
+    
+    def test_bulk_edit_no_category(self, client, sample_transactions):
+        """Test bulk edit without category."""
+        bulk_edit_data = {
+            'transaction_ids': [sample_transactions[0].id],
+            'category': ''
+        }
+        
+        response = client.post('/api/transactions/bulk-edit',
+                              data=json.dumps(bulk_edit_data),
+                              content_type='application/json')
+        
+        assert response.status_code == 400
+        
+        data = json.loads(response.data)
+        assert 'error' in data
 
 
 class TestFiltering:
@@ -281,17 +354,17 @@ class TestDashboardAPI:
         """Test category distribution chart data."""
         response = client.get('/api/charts/category_distribution')
         assert response.status_code == 200
-        
+
         data = json.loads(response.data)
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
     
     def test_monthly_trends(self, client, sample_transactions):
         """Test monthly trends chart data."""
         response = client.get('/api/charts/monthly_trends')
         assert response.status_code == 200
-        
+
         data = json.loads(response.data)
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
 
 
 class TestModels:

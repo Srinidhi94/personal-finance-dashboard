@@ -30,8 +30,9 @@ def create_app(config_name=None):
         db.create_all()
         
         # Check if we need to migrate from JSON files
-        if Transaction.query.count() == 0:
-            DataMigrationService.migrate_from_json()
+        # Commented out to prevent auto-loading of sample data
+        # if Transaction.query.count() == 0:
+        #     DataMigrationService.migrate_from_json()
     
     return app
 
@@ -66,7 +67,7 @@ def register_routes(app):
             
             return render_template('index.html', 
                                  summary=summary,
-                                 recent_transactions=[t.to_dict() for t in recent_transactions],
+                                 recent_transactions=recent_transactions,
                                  accounts=[a.to_dict() for a in accounts],
                                  expense_categories=expense_categories,
                                  income_categories=income_categories,
@@ -239,7 +240,7 @@ def register_routes(app):
                 if field not in data:
                     return jsonify({'error': f'Missing required field: {field}'}), 400
             
-            # Get or create account based on bank and account_type
+            # Get or create account based on account name and account_type
             if 'account_id' not in data:
                 bank = data.get('bank', 'HDFC')
                 account_type = data.get('account_type', 'Savings Account')
@@ -297,6 +298,38 @@ def register_routes(app):
             
             return jsonify({'message': 'Transaction deleted successfully'})
         except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/transactions/bulk-edit', methods=['POST'])
+    def api_bulk_edit_transactions():
+        """API endpoint to bulk edit transactions"""
+        try:
+            data = request.get_json()
+            transaction_ids = data.get('transaction_ids', [])
+            new_category = data.get('category')
+            
+            if not transaction_ids:
+                return jsonify({'error': 'No transactions selected'}), 400
+            
+            if not new_category:
+                return jsonify({'error': 'Category is required'}), 400
+            
+            # Update transactions
+            updated_count = 0
+            for transaction_id in transaction_ids:
+                transaction = Transaction.query.get(transaction_id)
+                if transaction:
+                    transaction.category = new_category
+                    updated_count += 1
+            
+            db.session.commit()
+            
+            return jsonify({
+                'message': f'Successfully updated {updated_count} transactions',
+                'updated_count': updated_count
+            })
+        except Exception as e:
+            db.session.rollback()
             return jsonify({'error': str(e)}), 500
     
     @app.route('/api/accounts', methods=['GET'])
@@ -713,7 +746,7 @@ def register_routes(app):
             
             # Clear pending transactions from session
             session.pop('pending_transactions', None)
-            
+    
             return jsonify({
                 'success': True,
                 'message': f'Successfully saved {len(saved_transactions)} transactions',
@@ -937,7 +970,7 @@ def register_routes(app):
                     else:
                         analytics['bank_breakdown'][bank]['income'] += amount
                 
-                # Account breakdown  
+                # Account breakdown
                 for account in accounts:
                     if account not in analytics['account_breakdown']:
                         analytics['account_breakdown'][account] = {'income': 0, 'expenses': 0, 'count': 0}

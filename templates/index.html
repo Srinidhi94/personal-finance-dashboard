@@ -196,36 +196,66 @@
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table">
+                    <table class="transactions-table table">
                         <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>Description</th>
-                                <th>Category</th>
-                                <th>Account</th>
-                                <th>Amount</th>
+                                <th style="width: 12%">Date</th>
+                                <th style="width: 35%">Description</th>
+                                <th style="width: 20%">Tags</th>
+                                <th style="width: 18%">Account</th>
+                                <th style="width: 15%">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% if recent_transactions %}
                                 {% for tx in recent_transactions %}
                                 <tr>
-                                    <td>{{ tx.date }}</td>
-                                    <td>{{ tx.description }}</td>
+                                    <td>{{ tx.date.strftime('%d-%m-%Y') if tx.date else 'No date' }}</td>
                                     <td>
-                                        <span class="badge bg-light text-dark">{{ tx.category or 'Miscellaneous' }}</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge {% if tx.bank == 'HDFC' %}bg-info{% elif tx.bank == 'Federal Bank' %}bg-success{% else %}bg-secondary{% endif %} text-white">
-                                            {{ tx.bank or 'Unknown' }}
-                                        </span>
-                                    </td>
-                                    <td class="{% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %}">
-                                        {% if tx.amount > 0 %}
-                                            ₹{{ "{:,.2f}".format(tx.amount) }}
-                                        {% else %}
-                                            -₹{{ "{:,.2f}".format(tx.amount|abs) }}
+                                        <div class="description-display">
+                                            {{ tx.description if tx.description else 'No description' }}
+                                        </div>
+                                        {% if tx.notes %}
+                                        <small class="text-muted d-block">{{ tx.notes }}</small>
                                         {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="tags-display">
+                                            {% set tags = tx.get_tags() if tx.get_tags else {} %}
+                                            {% set category = 'Other' %}
+                                            {% set account_type = 'Savings Account' %}
+                                            
+                                            {% if tags %}
+                                                {% if tags.get('categories') and tags.get('categories')|length > 0 %}
+                                                    {% set category = tags.get('categories')[0] %}
+                                                {% endif %}
+                                                {% if tags.get('account_type') and tags.get('account_type')|length > 0 %}
+                                                    {% set account_type = tags.get('account_type')[0] %}
+                                                {% endif %}
+                                            {% else %}
+                                                {% if tx.category %}
+                                                    {% set category = tx.category %}
+                                                {% endif %}
+                                                {% if tx.account_type %}
+                                                    {% set account_type = tx.account_type %}
+                                                {% endif %}
+                                            {% endif %}
+                                            
+                                            <span class="tag-chip">{{ category }}</span>
+                                            <span class="tag-chip account-type">{{ account_type }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="bank-text">{{ tx.bank or (tx.account.bank if tx.account else 'Unknown') }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="{% if tx.amount > 0 and not tx.is_debit %}amount-positive{% else %}amount-negative{% endif %}">
+                                            {% if tx.amount > 0 and not tx.is_debit %}
+                                                +₹{{ "{:,.2f}".format(tx.amount) }}
+                                            {% else %}
+                                                -₹{{ "{:,.2f}".format(tx.amount|abs) }}
+                                            {% endif %}
+                                        </span>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -258,9 +288,9 @@
             <form id="addTransactionForm">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="transaction_bank" class="form-label">Bank</label>
+                        <label for="transaction_bank" class="form-label">Account</label>
                         <select class="form-select" id="transaction_bank" name="bank" required>
-                            <option value="">Select Bank</option>
+                            <option value="">Select Account</option>
                             {% for bank in banks %}
                             <option value="{{ bank }}">{{ bank }}</option>
                             {% endfor %}
@@ -336,15 +366,15 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Upload Bank Statement</h5>
+                <h5 class="modal-title">Upload Account Statement</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="uploadForm" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="bank" class="form-label">Bank</label>
+                        <label for="bank" class="form-label">Account</label>
                         <select class="form-select" id="bank" name="bank" required>
-                            <option value="">Select Bank</option>
+                            <option value="">Select Account</option>
                             {% for bank in banks %}
                             <option value="{{ bank }}">{{ bank }}</option>
                             {% endfor %}
@@ -360,7 +390,7 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="file" class="form-label">Bank Statement File</label>
+                        <label for="file" class="form-label">Account Statement File</label>
                         <input type="file" class="form-control" id="file" name="file" accept=".pdf,.csv,.xlsx,.xls" required>
                         <div class="form-text">Supported formats: PDF, CSV, Excel</div>
                     </div>

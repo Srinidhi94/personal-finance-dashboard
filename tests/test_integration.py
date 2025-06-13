@@ -243,7 +243,7 @@ class TestCompleteWorkflows:
         assert response.status_code == 200
         
         category_data = json.loads(response.data)
-        assert isinstance(category_data, list)
+        assert isinstance(category_data, dict)
         
         # Test monthly trends
         response = client.get('/api/charts/monthly_trends')
@@ -340,7 +340,7 @@ class TestServiceIntegration:
                 is_debit=True
             )
             
-            assert category in ['Food', 'Other']  # Should categorize as Food or fallback to Other
+            assert category in ['Food', 'Miscellaneous']  # Should categorize as Food or fallback to Miscellaneous
             
             # Test subcategory
             subcategory = CategoryService.categorize_subcategory(

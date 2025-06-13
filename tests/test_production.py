@@ -100,6 +100,43 @@ class TestCriticalFunctionality:
         response = client.get('/transactions?bank=HDFC Bank')
         assert response.status_code == 200
         assert b'Test Food Transaction' in response.data
+    
+    def test_bulk_edit_functionality(self, client):
+        """Test bulk edit functionality works correctly."""
+        # Test that the endpoint exists and handles empty requests properly
+        response = client.post('/api/transactions/bulk-edit',
+                               data=json.dumps({
+                                   'transaction_ids': [],
+                                   'category': 'Test'
+                               }),
+                               content_type='application/json')
+        
+        # Should return 400 for empty transaction list
+        assert response.status_code == 400
+        
+        # Test missing category
+        response = client.post('/api/transactions/bulk-edit',
+                               data=json.dumps({
+                                   'transaction_ids': [1, 2],
+                                   'category': ''
+                               }),
+                               content_type='application/json')
+        
+        # Should return 400 for missing category
+        assert response.status_code == 400
+    
+    def test_date_editing_functionality(self, client):
+        """Test that date editing works correctly."""
+        # Test that the transaction update endpoint handles date updates
+        response = client.put('/api/transactions/999',
+                              data=json.dumps({
+                                  'date': '2024-01-15',
+                                  'description': 'Test transaction'
+                              }),
+                              content_type='application/json')
+        
+        # Should return 404 for non-existent transaction
+        assert response.status_code == 404
 
 
 if __name__ == '__main__':

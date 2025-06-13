@@ -143,6 +143,7 @@
         flex-wrap: wrap;
         gap: 0.375rem;
         align-items: center;
+        position: relative;
     }
     
     .tag-chip {
@@ -246,14 +247,12 @@
         font-weight: 600;
     }
     
-    .bank-badge {
-        background-color: rgba(52, 152, 219, 0.15);
-        color: #2980b9;
-        padding: 0.5em 0.8em;
-        border-radius: 8px;
-        font-size: 0.8rem;
+    .bank-text {
+        color: #6c757d;
+        font-size: 0.85rem;
         font-weight: 500;
-        border: 1px solid rgba(52, 152, 219, 0.3);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     
     .action-dropdown {
@@ -356,7 +355,7 @@
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <h1>Review Uploaded Transactions</h1>
-                <p><strong>{{ transactions|length }}</strong> transactions extracted from your Federal Bank statement</p>
+                <p><strong>{{ transactions|length }}</strong> transactions extracted from your Federal Bank account statement</p>
             </div>
             <div class="action-buttons">
                 <button class="btn-subtle" onclick="window.location.href='{{ url_for('transactions') }}'">
@@ -438,7 +437,7 @@
                             </div>
                         </td>
                         <td>
-                            <span class="bank-badge">{{ transaction.get('bank', 'Federal Bank') }}</span>
+                            <span class="bank-text">{{ transaction.get('bank', 'Federal Bank') }}</span>
                         </td>
                         <td>
                             <span class="{% if transaction.amount >= 0 %}amount-positive{% else %}amount-negative{% endif %}">
@@ -535,8 +534,9 @@ function showTagDropdown(button) {
     const dropdown = document.createElement('div');
     dropdown.className = 'tag-dropdown';
     dropdown.style.position = 'absolute';
-    dropdown.style.top = (button.offsetTop + button.offsetHeight + 5) + 'px';
-    dropdown.style.left = button.offsetLeft + 'px';
+    dropdown.style.top = '100%';
+    dropdown.style.left = '0';
+    dropdown.style.marginTop = '5px';
     
     // Get existing tags
     const existingTags = Array.from(container.querySelectorAll('.tag-chip'))

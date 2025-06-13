@@ -179,3 +179,115 @@ body {
     padding: 1rem;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
+
+/* Transaction table styling */
+.transactions-table {
+    margin-bottom: 0;
+}
+
+.transactions-table thead th {
+    border-top: none;
+    border-bottom: 2px solid #eaeaea;
+    color: #666;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    padding: 0.75rem 1rem;
+}
+
+.transactions-table tbody td {
+    border-top: 1px solid #f2f2f2;
+    padding: 1rem;
+    vertical-align: middle;
+}
+
+.transactions-table tbody tr:hover {
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+/* Tag chips */
+.tag-chip {
+    display: inline-block;
+    background-color: rgba(52, 152, 219, 0.15);
+    color: #2980b9;
+    padding: 0.3em 0.6em;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-right: 0.4rem;
+    margin-bottom: 0.2rem;
+    border: 1px solid rgba(52, 152, 219, 0.3);
+    line-height: 1.2;
+}
+
+.tag-chip.account-type {
+    background-color: rgba(155, 89, 182, 0.15);
+    color: #8e44ad;
+    border: 1px solid rgba(155, 89, 182, 0.3);
+}
+
+/* Tags display container */
+.tags-display {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.2rem;
+    max-width: 100%;
+}
+
+/* Account text - subtle grey design consistent with project theme */
+.bank-text {
+    display: inline-block;
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #495057;
+    padding: 0.35em 0.7em;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* Amount styling */
+.amount-positive {
+    color: #27ae60;
+    font-weight: 500;
+}
+
+.amount-negative {
+    color: #e74c3c;
+    font-weight: 500;
+}
+
+/* Transaction row hover effect for double-click editing */
+.transactions-table tbody tr:hover {
+    background-color: rgba(52, 152, 219, 0.05);
+    cursor: pointer;
+}
+
+.transactions-table tbody tr .action-dropdown:hover,
+.transactions-table tbody tr .edit-actions:hover {
+    cursor: default;
+}
+
+/* Date picker styling */
+.date-field {
+    border: 2px solid #3498db;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background-color: #fff;
+    color: #2c3e50;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.1);
+}
+
+.date-field:focus {
+    outline: none;
+    border-color: #2980b9;
+    box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+}
