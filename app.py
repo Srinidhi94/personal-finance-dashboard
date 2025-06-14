@@ -1,18 +1,19 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_migrate import Migrate
 from sqlalchemy import desc, func, or_
 from werkzeug.utils import secure_filename
 
 from config import config
-from models import Account, Category, Transaction, User, db
-from services import AccountService, CategoryService, DataMigrationService, TransactionService
+from models import Account, Category, Transaction, db
+from services import AccountService, TransactionService
 
 
 # Initialize Flask app
 def create_app(config_name=None):
+    """Create and configure the Flask application"""
     app = Flask(__name__)
 
     # Load configuration
@@ -22,19 +23,14 @@ def create_app(config_name=None):
 
     # Initialize extensions
     db.init_app(app)
-    migrate = Migrate(app, db)
+    Migrate(app, db)
 
     # Register routes
     register_routes(app)
 
-    # Create database tables and migrate data
+    # Create tables
     with app.app_context():
         db.create_all()
-
-        # Check if we need to migrate from JSON files
-        # Commented out to prevent auto-loading of sample data
-        # if Transaction.query.count() == 0:
-        #     DataMigrationService.migrate_from_json()
 
     return app
 
@@ -274,15 +270,15 @@ def register_routes(app):
             # Validate JSON data
             if not request.is_json:
                 return jsonify({"error": "Content-Type must be application/json"}), 400
-            
+
             try:
                 data = request.get_json()
             except Exception:
                 return jsonify({"error": "Invalid JSON data"}), 400
-                
+
             if data is None:
                 return jsonify({"error": "Invalid JSON data"}), 400
-            
+
             # Validate required fields
             required_fields = ["date", "description", "amount"]
             for field in required_fields:
@@ -304,7 +300,7 @@ def register_routes(app):
             transaction = Transaction.query.get(transaction_id)
             if not transaction:
                 return jsonify({"error": "Transaction not found"}), 404
-            
+
             return jsonify(transaction.to_dict())
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -399,7 +395,7 @@ def register_routes(app):
             # Get expense categories (excluding income)
             category_data = (
                 db.session.query(Transaction.category, func.sum(Transaction.amount).label("total"))
-                .filter(Transaction.is_debit == True, Transaction.category != "Income")
+                .filter(Transaction.is_debit.is_(True), Transaction.category != "Income")
                 .group_by(Transaction.category)
                 .all()
             )
@@ -428,7 +424,7 @@ def register_routes(app):
             # Get expense categories (excluding income)
             category_data = (
                 db.session.query(Transaction.category, func.sum(Transaction.amount).label("total"))
-                .filter(Transaction.is_debit == True, Transaction.category != "Income")
+                .filter(Transaction.is_debit.is_(True), Transaction.category != "Income")
                 .group_by(Transaction.category)
                 .all()
             )
@@ -789,11 +785,11 @@ def register_routes(app):
 
             return jsonify(
                 {
-                    "status": "healthy", 
-                    "database": "connected", 
-                    "transactions": transaction_count, 
+                    "status": "healthy",
+                    "database": "connected",
+                    "transactions": transaction_count,
                     "accounts": account_count,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 }
             )
         except Exception as e:
@@ -1094,7 +1090,7 @@ def register_routes(app):
         """Legacy confirm upload endpoint - redirects to new API endpoint"""
         if "pending_transactions" not in session:
             return redirect(url_for("transactions"))
-        
+
         return redirect(url_for("confirm_upload"))
 
 

@@ -35,7 +35,7 @@ def detect_hdfc_savings(pdf_path):
             r"Account Number",
             r"Statement Period",
             r"Opening Balance",
-            r"Closing Balance"
+            r"Closing Balance",
         ]
 
         # Count how many patterns match
@@ -45,10 +45,11 @@ def detect_hdfc_savings(pdf_path):
                 matches += 1
 
         # If we have HDFC BANK and SAVINGS ACCOUNT, that's distinctive enough
-        if (re.search(r"HDFC BANK", first_page_text, re.IGNORECASE) and 
-            re.search(r"SAVINGS ACCOUNT", first_page_text, re.IGNORECASE)):
+        if re.search(r"HDFC BANK", first_page_text, re.IGNORECASE) and re.search(
+            r"SAVINGS ACCOUNT", first_page_text, re.IGNORECASE
+        ):
             return True
-            
+
         # Otherwise, need at least 2 matches
         return matches >= 2
 
@@ -110,7 +111,7 @@ def extract_statement_metadata(doc):
                 end_date_str = statement_period_match.group(2)  # End date has format "DD/MM/YY"
                 day, month, year = end_date_str.split("/")
                 metadata["statement_year"] = int("20" + year)
-            except:
+            except (ValueError, IndexError):
                 print("Could not extract year from statement period, using current year")
 
         # Extract account holder
@@ -181,7 +182,6 @@ def extract_transactions(doc, statement_year):
     """
     transactions = []
     current_date = None
-    current_description = None
 
     # Process each page
     for page_num in range(len(doc)):
@@ -216,7 +216,6 @@ def extract_transactions(doc, statement_year):
             date_match = re.match(r"^(\d{1,2}/\d{1,2}/\d{2})$", line)
             if date_match:
                 current_date = parse_date(date_match.group(1), statement_year)
-                current_description = None  # Reset description for new date
                 i += 1
                 continue
 
