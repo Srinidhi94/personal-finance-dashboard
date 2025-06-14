@@ -265,7 +265,7 @@ class TestCompleteWorkflows:
         assert response.status_code == 200
 
         account_data = json.loads(response.data)
-        assert isinstance(account_data, list)
+        assert isinstance(account_data, dict)
 
 
 class TestServiceIntegration:

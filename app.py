@@ -269,39 +269,43 @@ def register_routes(app):
 
     @app.route("/api/transactions", methods=["POST"])
     def api_create_transaction():
-        """API endpoint to create a new transaction"""
+        """Create a new transaction"""
         try:
-            data = request.get_json()
-
+            # Validate JSON data
+            if not request.is_json:
+                return jsonify({"error": "Content-Type must be application/json"}), 400
+            
+            try:
+                data = request.get_json()
+            except Exception:
+                return jsonify({"error": "Invalid JSON data"}), 400
+                
+            if data is None:
+                return jsonify({"error": "Invalid JSON data"}), 400
+            
             # Validate required fields
-            required_fields = ["description", "amount", "date"]
+            required_fields = ["date", "description", "amount"]
             for field in required_fields:
                 if field not in data:
                     return jsonify({"error": f"Missing required field: {field}"}), 400
 
-            # Get or create account based on account name and account_type
-            if "account_id" not in data:
-                bank = data.get("bank", "HDFC")
-                account_type = data.get("account_type", "Savings Account")
-                account = AccountService.get_or_create_account(
-                    name=f"{bank} {account_type}", bank=bank, account_type=account_type
-                )
-                data["account_id"] = account.id
-
-            # Auto-categorize if not provided
-            if "category" not in data:
-                data["category"] = CategoryService.categorize_transaction(
-                    data["description"], float(data["amount"]), data.get("is_debit", True)
-                )
-
-            # Auto-subcategorize if not provided
-            if "subcategory" not in data:
-                data["subcategory"] = CategoryService.categorize_subcategory(data["description"], data["category"])
-
-            # Create transaction
+            # Create transaction using service
             transaction = TransactionService.create_transaction(data)
-
             return jsonify(transaction.to_dict()), 201
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/transactions/<int:transaction_id>", methods=["GET"])
+    def api_get_transaction(transaction_id):
+        """Get a specific transaction by ID"""
+        try:
+            transaction = Transaction.query.get(transaction_id)
+            if not transaction:
+                return jsonify({"error": "Transaction not found"}), 404
+            
+            return jsonify(transaction.to_dict())
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -784,10 +788,16 @@ def register_routes(app):
             account_count = Account.query.count()
 
             return jsonify(
-                {"status": "healthy", "database": "connected", "transactions": transaction_count, "accounts": account_count}
+                {
+                    "status": "healthy", 
+                    "database": "connected", 
+                    "transactions": transaction_count, 
+                    "accounts": account_count,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
             )
         except Exception as e:
-            return jsonify({"status": "unhealthy", "error": str(e)}), 500
+            return jsonify({"status": "unhealthy", "error": str(e), "timestamp": datetime.utcnow().isoformat()}), 500
 
     @app.route("/debug/db")
     def debug_db():
@@ -1078,6 +1088,14 @@ def register_routes(app):
             return jsonify(filters)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @app.route("/confirm-upload", methods=["POST"])
+    def confirm_upload_legacy():
+        """Legacy confirm upload endpoint - redirects to new API endpoint"""
+        if "pending_transactions" not in session:
+            return redirect(url_for("transactions"))
+        
+        return redirect(url_for("confirm_upload"))
 
 
 if __name__ == "__main__":

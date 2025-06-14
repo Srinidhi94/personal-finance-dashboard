@@ -14,35 +14,46 @@ import fitz  # PyMuPDF
 
 def detect_hdfc_savings(pdf_path):
     """
-    Detect if a PDF file is an HDFC Bank savings account statement
+    Detect if a PDF is an HDFC savings account statement
 
     Args:
-        pdf_path (str): Path to the PDF statement file
+        pdf_path (str): Path to the PDF file
 
     Returns:
-        bool: True if the file is an HDFC Bank savings account statement
+        bool: True if it's an HDFC savings statement, False otherwise
     """
     try:
-        # Open PDF with PyMuPDF
         doc = fitz.open(pdf_path)
-
-        # Extract text from the first page
         first_page_text = doc[0].get_text()
-
-        # Close the document
         doc.close()
 
-        # Check for structural elements common in HDFC statements
-        has_account_number = any(marker in first_page_text for marker in ["Account No", "Account Number"])
-        has_hdfc = any(marker in first_page_text for marker in ["HDFC", "HDFC BANK"])
-        has_transaction_section = any(marker in first_page_text for marker in ["Transaction Details", "Statement of account"])
-        has_balance_section = any(marker in first_page_text for marker in ["Opening Balance", "Closing Balance", "Balance"])
+        # Check for HDFC specific patterns
+        hdfc_patterns = [
+            r"HDFC BANK",
+            r"SAVINGS ACCOUNT",
+            r"SAVINGS ACCOUNT STATEMENT",
+            r"Account Number",
+            r"Statement Period",
+            r"Opening Balance",
+            r"Closing Balance"
+        ]
 
-        # If it has most of the structural elements, consider it a valid statement
-        score = sum([has_account_number, has_hdfc, has_transaction_section, has_balance_section])
-        return score >= 3
+        # Count how many patterns match
+        matches = 0
+        for pattern in hdfc_patterns:
+            if re.search(pattern, first_page_text, re.IGNORECASE):
+                matches += 1
 
-    except Exception:
+        # If we have HDFC BANK and SAVINGS ACCOUNT, that's distinctive enough
+        if (re.search(r"HDFC BANK", first_page_text, re.IGNORECASE) and 
+            re.search(r"SAVINGS ACCOUNT", first_page_text, re.IGNORECASE)):
+            return True
+            
+        # Otherwise, need at least 2 matches
+        return matches >= 2
+
+    except Exception as e:
+        print(f"Error detecting HDFC statement: {str(e)}")
         return False
 
 

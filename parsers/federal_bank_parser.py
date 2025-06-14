@@ -14,33 +14,42 @@ import fitz  # PyMuPDF
 
 def detect_federal_bank_savings(pdf_path):
     """
-    Detect if a PDF file is a Federal Bank savings account statement
+    Detect if a PDF is a Federal Bank savings account statement
 
     Args:
-        pdf_path (str): Path to the PDF statement file
+        pdf_path (str): Path to the PDF file
 
     Returns:
-        bool: True if the file is a Federal Bank savings account statement
+        bool: True if it's a Federal Bank savings statement, False otherwise
     """
     try:
-        # Open PDF with PyMuPDF
         doc = fitz.open(pdf_path)
-
-        # Extract text from the first page
         first_page_text = doc[0].get_text()
-
-        # Close the document
         doc.close()
 
-        # Check for structural elements common in Federal Bank statements
-        has_account_number = "SAVINGS A/C NO" in first_page_text
-        has_ifsc = "FDRL" in first_page_text  # Federal Bank IFSC code
-        has_transaction_section = "Transaction Details" in first_page_text
-        has_balance_section = "Opening Balance" in first_page_text and "Closing Balance" in first_page_text
+        # Check for Federal Bank specific patterns
+        federal_bank_patterns = [
+            r"FEDERAL BANK",
+            r"SAVINGS A/C NO:",
+            r"SAVINGS ACCOUNT",
+            r"Statement Period",
+            r"Opening Balance",
+            r"Closing Balance"
+        ]
 
-        # If it has most of the structural elements, consider it a valid statement
-        score = sum([has_account_number, has_ifsc, has_transaction_section, has_balance_section])
-        return score >= 3
+        # Count how many patterns match
+        matches = 0
+        for pattern in federal_bank_patterns:
+            if re.search(pattern, first_page_text, re.IGNORECASE):
+                matches += 1
+
+        # If we have at least 1 match for SAVINGS A/C NO, consider it a Federal Bank statement
+        # This is the most distinctive pattern
+        if re.search(r"SAVINGS A/C NO:", first_page_text, re.IGNORECASE):
+            return True
+            
+        # Otherwise, need at least 2 matches
+        return matches >= 2
 
     except Exception as e:
         print(f"Error detecting Federal Bank statement: {str(e)}")
@@ -240,6 +249,7 @@ def extract_transactions(doc, statement_year):
 
             # Look for transaction description
             # Common patterns: POS/, TO INTL, CHRG/, UPI IN/, ForexMarkupRefund/, Visa Other, TO ECM
+            # Also handle simpler patterns like UPI/CR/, POS/DEBIT CARD/, ATM/CASH
             if any(
                 pattern in line
                 for pattern in [
@@ -247,14 +257,19 @@ def extract_transactions(doc, statement_year):
                     "TO INTL",
                     "CHRG/",
                     "UPI IN/",
+                    "UPI/CR/",
+                    "UPI/DR/",
                     "ForexMarkupRefund/",
                     "Visa Other",
                     "UPI/",
                     "IMPS/",
                     "NEFT/",
                     "TO ECM/",
+                    "DEBIT CARD/",
+                    "ATM/CASH",
+                    "PAYMENT"
                 ]
-            ):
+            ) or re.match(r"^[A-Z]+/[A-Z]+", line):  # Match patterns like UPI/CR/, POS/DEBIT
                 # Get amount and balance from next lines
                 amount = None
                 balance = None
@@ -263,14 +278,14 @@ def extract_transactions(doc, statement_year):
                 for j in range(1, 4):  # Look up to 3 lines ahead
                     if i + j < len(lines):
                         amount_line = lines[i + j].strip()
-                        if re.match(r"^[\d,]+\.\d{2}$", amount_line):
+                        if re.match(r"^[\d,]+\.?\d*$", amount_line):  # Allow amounts without decimals
                             try:
                                 # Remove commas and convert to float
                                 amount = float(amount_line.replace(",", ""))
                                 # Look for balance in next line
                                 if i + j + 1 < len(lines):
                                     balance_line = lines[i + j + 1].strip()
-                                    if re.match(r"^[\d,]+\.\d{2}$", balance_line):
+                                    if re.match(r"^[\d,]+\.?\d*$", balance_line):
                                         balance = float(balance_line.replace(",", ""))
                                         i = i + j + 2  # Skip processed lines
                                         break
@@ -283,7 +298,7 @@ def extract_transactions(doc, statement_year):
 
                     # Check for credit indicators
                     if any(
-                        indicator in line for indicator in ["ForexMarkupRefund/", "UPI IN/", "UPI/CR/", "IMPS/CR/", "NEFT/CR/"]
+                        indicator in line for indicator in ["ForexMarkupRefund/", "UPI IN/", "UPI/CR/", "IMPS/CR/", "NEFT/CR/", "PAYMENT"]
                     ):
                         is_credit = True
                     # Check for debit indicators
@@ -298,6 +313,9 @@ def extract_transactions(doc, statement_year):
                             "IMPS/DR/",
                             "NEFT/DR/",
                             "TO ECM/",
+                            "DEBIT CARD/",
+                            "ATM/CASH",
+                            "WITHDRAWAL"
                         ]
                     ):
                         is_credit = False
