@@ -231,14 +231,12 @@
         color: #e74c3c;
     }
     
-    .bank-badge {
-        background-color: rgba(52, 152, 219, 0.15);
-        color: #2980b9;
-        padding: 0.5em 0.8em;
-        border-radius: 8px;
-        font-size: 0.8rem;
+    .bank-text {
+        color: #6c757d;
+        font-size: 0.85rem;
         font-weight: 500;
-        border: 1px solid rgba(52, 152, 219, 0.3);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     
     .action-dropdown {
@@ -424,22 +422,22 @@
 {% block content %}
 <div class="transactions-container">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="mb-0">Transactions</h2>
-        <div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Transactions</h2>
+    <div>
             <button class="btn btn-outline-secondary me-2" id="export-btn">
                 <i class="bi bi-download me-2"></i>Export
-            </button>
+        </button>
             <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadModal">
                 <i class="bi bi-upload me-2"></i>Upload Statement
             </button>
             <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
                 <i class="bi bi-plus-circle me-2"></i>Add Transaction
-            </button>
-        </div>
+        </button>
     </div>
+</div>
 
-    <!-- Filter Section -->
+<!-- Filter Section -->
     <div class="filters-card">
         <div class="filters-header">
             <h5>Filters</h5>
@@ -447,92 +445,92 @@
         <div class="p-4">
             <form method="GET" id="filter-form" class="row g-3">
                 <div class="col-md-2">
-                    <label for="category" class="form-label">Category</label>
-                    <select class="form-select" id="category" name="category">
-                        <option value="">All Categories</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="account" class="form-label">Account Type</label>
-                    <select class="form-select" id="account" name="account">
-                        <option value="">All Account Types</option>
-                        {% for acc_type in account_types %}
-                        <option value="{{ acc_type }}" {% if filters.account == acc_type %}selected{% endif %}>{{ acc_type }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="bank" class="form-label">Bank</label>
-                    <select class="form-select" id="bank" name="bank">
-                        <option value="">All Banks</option>
+                    <label for="bank" class="form-label">Account Name</label>
+                    <select class="form-select filter-select" id="bank" name="bank">
+                        <option value="">All Accounts</option>
                         {% for bank in banks %}
                         <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <label for="account" class="form-label">Account Type</label>
+                    <select class="form-select filter-select" id="account" name="account">
+                        <option value="">All Account Types</option>
+                        {% for acc_type in account_types %}
+                        <option value="{{ acc_type }}" {% if filters.account == acc_type %}selected{% endif %}>{{ acc_type }}</option>
+                    {% endfor %}
+                </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="category" class="form-label">Category</label>
+                    <select class="form-select filter-select" id="category" name="category">
+                    <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+                </div>
+                <div class="col-md-2">
                     <label for="date_from" class="form-label">From Date</label>
-                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ filters.date_from or '' }}">
+                    <input type="date" class="form-control filter-input" id="date_from" name="date_from" value="{{ filters.date_from or '' }}">
                 </div>
                 <div class="col-md-2">
                     <label for="date_to" class="form-label">To Date</label>
-                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ filters.date_to or '' }}">
+                    <input type="date" class="form-control filter-input" id="date_to" name="date_to" value="{{ filters.date_to or '' }}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-filter me-2"></i>Apply Filters
+                    <button type="button" class="btn btn-outline-secondary w-100" id="clear-filters">
+                        <i class="bi bi-x-circle me-2"></i>Clear Filters
                     </button>
                 </div>
-            </form>
-        </div>
+        </form>
     </div>
+</div>
 
-    <!-- Bulk Edit Card (Hidden by default) -->
+<!-- Bulk Edit Card (Hidden by default) -->
     <div class="bulk-edit-card" id="bulk-edit-card">
         <div class="bulk-edit-header">
             <h5>Bulk Edit Categories</h5>
-        </div>
+    </div>
         <div class="p-4">
-            <div class="row">
-                <div class="col-md-4">
-                    <label for="bulk-category" class="form-label">New Category</label>
-                    <select class="form-select" id="bulk-category">
+        <div class="row">
+            <div class="col-md-4">
+                <label for="bulk-category" class="form-label">New Category</label>
+                <select class="form-select" id="bulk-category">
                         {% for cat in categories %}
                         <option value="{{ cat }}">{{ cat }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button type="button" class="btn btn-primary me-2" id="apply-bulk-edit">
-                        Apply to Selected
-                    </button>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="button" class="btn btn-primary me-2" id="apply-bulk-edit">
+                    Apply to Selected
+                </button>
                     <button type="button" class="btn btn-outline-secondary" id="cancel-bulk-edit">
-                        Cancel
-                    </button>
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <span class="text-muted" id="selected-count">0 transactions selected</span>
-                </div>
+                    Cancel
+                </button>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <span class="text-muted" id="selected-count">0 transactions selected</span>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Transactions Table -->
+<!-- Transactions Table -->
     <div class="transactions-card">
         <div class="transactions-card-header d-flex justify-content-between align-items-center">
             <h5>Transaction Details</h5>
-            <div>
+        <div>
                 <button class="btn btn-outline-secondary me-2" id="bulk-edit-btn">
                     <i class="bi bi-pencil-square me-1"></i>Bulk Edit
-                </button>
+            </button>
                 <button class="btn btn-outline-secondary" id="select-all-btn">
                     <i class="bi bi-check-all me-1"></i>Select All
-                </button>
-            </div>
+            </button>
         </div>
+    </div>
         
         {% if transactions and transactions.items %}
         <div class="table-responsive">
@@ -545,7 +543,7 @@
                         <th style="width: 12%">Date</th>
                         <th style="width: 30%">Description</th>
                         <th style="width: 25%">Tags</th>
-                        <th style="width: 15%">Bank</th>
+                        <th style="width: 15%">Account</th>
                         <th style="width: 12%">Amount</th>
                         <th style="width: 6%">Actions</th>
                     </tr>
@@ -556,12 +554,19 @@
                         <td>
                             <input type="checkbox" class="transaction-checkbox" value="{{ transaction.id }}" style="display: none;">
                         </td>
-                        <td>{{ transaction.date }}</td>
                         <td>
+                            <div class="date-display">
+                                {{ transaction.date.strftime('%d-%m-%Y') if transaction.date else 'No date' }}
+                            </div>
+                            <div class="date-edit" style="display: none;">
+                                <input type="date" class="form-control date-field" value="{{ transaction.date.strftime('%Y-%m-%d') if transaction.date else '' }}" />
+                            </div>
+                        </td>
+                                                <td>
                             <div class="description-display">
                                 {{ transaction.description if transaction.description else 'No description' }}
                             </div>
-                            <div class="description-edit">
+                            <div class="description-edit" style="display: none;">
                                 <input type="text" class="description-field" value="{{ transaction.description }}" />
                             </div>
                             {% if transaction.notes %}
@@ -601,7 +606,7 @@
                                     <span class="tag-chip" data-type="category" data-value="{{ category }}">
                                         {{ category }}
                                         <button class="remove-btn" type="button">&times;</button>
-                                    </span>
+                                </span>
                                     
                                     <span class="tag-chip account-type" data-type="account_type" data-value="{{ account_type }}">
                                         {{ account_type }}
@@ -615,7 +620,7 @@
                             </div>
                         </td>
                         <td>
-                            <span class="bank-badge">{{ transaction.bank or (transaction.account.bank if transaction.account else 'Unknown') }}</span>
+                            <span class="bank-text">{{ transaction.bank or (transaction.account.bank if transaction.account else 'Unknown') }}</span>
                         </td>
                         <td>
                             <span class="{% if transaction.amount > 0 and not transaction.is_debit %}amount-positive{% else %}amount-negative{% endif %}">
@@ -631,7 +636,7 @@
                             <div class="action-dropdown normal-actions">
                                 <button class="action-menu-btn" type="button">
                                     <i class="bi bi-three-dots-vertical"></i>
-                                </button>
+                            </button>
                                 <div class="action-menu">
                                     <div class="action-menu-item edit-btn" data-id="{{ transaction.id }}">
                                         <i class="bi bi-pencil"></i> Edit
@@ -645,11 +650,11 @@
                             <!-- Edit mode: inline save/cancel buttons -->
                             <div class="edit-actions" style="display: none;">
                                 <button class="btn btn-sm btn-success save-btn me-1" data-id="{{ transaction.id }}" title="Save changes">
-                                    <i class="bi bi-check"></i>
-                                </button>
+                                <i class="bi bi-check"></i>
+                            </button>
                                 <button class="btn btn-sm btn-outline-secondary cancel-btn" data-id="{{ transaction.id }}" title="Cancel editing">
-                                    <i class="bi bi-x"></i>
-                                </button>
+                                <i class="bi bi-x"></i>
+                            </button>
                             </div>
                         </td>
                     </tr>
@@ -714,15 +719,15 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="uploadModalLabel">Upload Bank Statement</h5>
+                <h5 class="modal-title" id="uploadModalLabel">Upload Account Statement</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="uploadForm" enctype="multipart/form-data">
-                <div class="modal-body">
+            <div class="modal-body">
                     <div class="mb-3">
-                        <label for="bank" class="form-label">Bank</label>
+                        <label for="bank" class="form-label">Account</label>
                         <select class="form-select" id="bank" name="bank" required>
-                            <option value="">Select Bank</option>
+                            <option value="">Select Account</option>
                             {% for bank in banks %}
                             <option value="{{ bank }}">{{ bank }}</option>
                             {% endfor %}
@@ -738,15 +743,15 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="file" class="form-label">Bank Statement File</label>
+                        <label for="file" class="form-label">Account Statement File</label>
                         <input type="file" class="form-control" id="file" name="file" accept=".pdf,.csv,.xlsx,.xls" required>
                         <div class="form-text">Supported formats: PDF, CSV, Excel</div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Upload & Review</button>
-                </div>
+            </div>
             </form>
         </div>
     </div>
@@ -761,11 +766,11 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="addTransactionForm">
-                <div class="modal-body">
+            <div class="modal-body">
                     <div class="mb-3">
-                        <label for="transaction_bank" class="form-label">Bank</label>
+                        <label for="transaction_bank" class="form-label">Account</label>
                         <select class="form-select" id="transaction_bank" name="bank" required>
-                            <option value="">Select Bank</option>
+                            <option value="">Select Account</option>
                             {% for bank in banks %}
                             <option value="{{ bank }}">{{ bank }}</option>
                             {% endfor %}
@@ -800,14 +805,14 @@
                             <label class="btn btn-outline-danger" for="type_expense">
                                 <i class="bi bi-dash-circle me-2"></i>Expense
                             </label>
-                        </div>
                     </div>
+            </div>
                     <div class="mb-3">
                         <label for="transaction_amount" class="form-label">Amount</label>
                         <div class="input-group">
                             <span class="input-group-text">₹</span>
                             <input type="number" step="0.01" min="0" class="form-control" id="transaction_amount" name="amount" required placeholder="0.00">
-                        </div>
+        </div>
                         <div class="form-text">Enter the amount (always positive)</div>
                     </div>
                     <div class="mb-3">
@@ -926,9 +931,9 @@ document.addEventListener('click', function(e) {
     // Close tag dropdowns when clicking outside
     document.querySelectorAll('.tag-dropdown').forEach(dropdown => {
         dropdown.remove();
+        });
     });
-});
-
+    
 function showTagDropdown(button) {
     const container = button.parentElement;
     const transactionId = container.dataset.transactionId;
@@ -1017,15 +1022,15 @@ function updateTransactionTags(transactionId, container) {
     
     fetch(`/api/transactions/${transactionId}`, {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
             tags: tagsData
         })
-    })
-    .then(response => response.json())
-    .then(data => {
+            })
+            .then(response => response.json())
+            .then(data => {
         if (!data.error) {
             console.log('Tags updated successfully');
         } else {
@@ -1040,6 +1045,8 @@ function updateTransactionTags(transactionId, container) {
 // Transaction editing functions
 function editTransaction(transactionId) {
     const row = document.querySelector(`tr[data-id="${transactionId}"]`);
+    const dateDisplay = row.querySelector('.date-display');
+    const dateEdit = row.querySelector('.date-edit');
     const descDisplay = row.querySelector('.description-display');
     const descEdit = row.querySelector('.description-edit');
     const tagsDisplay = row.querySelector('.tags-display');
@@ -1047,7 +1054,9 @@ function editTransaction(transactionId) {
     const normalActions = row.querySelector('.normal-actions');
     const editActions = row.querySelector('.edit-actions');
     
-    // Switch to edit mode for both description and tags
+    // Switch to edit mode for date, description and tags
+    dateDisplay.style.display = 'none';
+    dateEdit.style.display = 'block';
     descDisplay.style.display = 'none';
     descEdit.style.display = 'block';
     tagsDisplay.style.display = 'none';
@@ -1065,6 +1074,8 @@ function editTransaction(transactionId) {
 
 function saveTransaction(transactionId) {
     const row = document.querySelector(`tr[data-id="${transactionId}"]`);
+    const dateInput = row.querySelector('.date-edit input');
+    const newDate = dateInput.value;
     const descInput = row.querySelector('.description-edit input');
     const newDescription = descInput.value;
     
@@ -1088,6 +1099,7 @@ function saveTransaction(transactionId) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+            date: newDate,
             description: newDescription,
             tags: tagsData
         })
@@ -1095,6 +1107,18 @@ function saveTransaction(transactionId) {
     .then(response => response.json())
     .then(data => {
         if (!data.error) {
+            // Update date display
+            const dateDisplay = row.querySelector('.date-display');
+            if (newDate) {
+                const dateObj = new Date(newDate);
+                const formattedDate = dateObj.toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                }).replace(/\//g, '-');
+                dateDisplay.textContent = formattedDate;
+            }
+            
             // Update description display
             const descDisplay = row.querySelector('.description-display');
             descDisplay.textContent = newDescription;
@@ -1103,21 +1127,21 @@ function saveTransaction(transactionId) {
             const tagsDisplay = row.querySelector('.tags-display');
             tagsDisplay.innerHTML = '';
             
-            // Add category tag
-            if (categories.length > 0) {
+            // Add all category tags
+            categories.forEach(category => {
                 const categorySpan = document.createElement('span');
                 categorySpan.className = 'tag-chip';
-                categorySpan.textContent = categories[0];
+                categorySpan.textContent = category;
                 tagsDisplay.appendChild(categorySpan);
-            }
+            });
             
-            // Add account type tag
-            if (accountTypes.length > 0) {
+            // Add all account type tags
+            accountTypes.forEach(accountType => {
                 const accountSpan = document.createElement('span');
                 accountSpan.className = 'tag-chip account-type';
-                accountSpan.textContent = accountTypes[0];
+                accountSpan.textContent = accountType;
                 tagsDisplay.appendChild(accountSpan);
-            }
+            });
             
             // Switch back to display mode
             exitEditMode(row);
@@ -1145,6 +1169,8 @@ function cancelEdit(transactionId) {
 }
 
 function exitEditMode(row) {
+    const dateDisplay = row.querySelector('.date-display');
+    const dateEdit = row.querySelector('.date-edit');
     const descDisplay = row.querySelector('.description-display');
     const descEdit = row.querySelector('.description-edit');
     const tagsDisplay = row.querySelector('.tags-display');
@@ -1152,7 +1178,9 @@ function exitEditMode(row) {
     const normalActions = row.querySelector('.normal-actions');
     const editActions = row.querySelector('.edit-actions');
     
-    // Switch back to display mode for both description and tags
+    // Switch back to display mode for date, description and tags
+    dateDisplay.style.display = 'block';
+    dateEdit.style.display = 'none';
     descDisplay.style.display = 'block';
     descEdit.style.display = 'none';
     tagsDisplay.style.display = 'flex';
@@ -1239,7 +1267,7 @@ document.getElementById('addTransactionForm').addEventListener('submit', functio
     // Make amount negative for expenses
     if (transactionType === 'expense') {
         amount = -Math.abs(amount);
-    } else {
+        } else {
         amount = Math.abs(amount);
     }
     
@@ -1315,12 +1343,12 @@ document.addEventListener('change', function(e) {
 });
 
 // Bulk editing functionality
-document.getElementById('bulk-edit-btn').addEventListener('click', function() {
+    document.getElementById('bulk-edit-btn').addEventListener('click', function() {
     const checkboxes = document.querySelectorAll('.transaction-checkbox');
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
     const bulkEditCard = document.getElementById('bulk-edit-card');
-    
-    // Show checkboxes and bulk edit card
+        
+            // Show checkboxes and bulk edit card
     checkboxes.forEach(cb => cb.style.display = 'block');
     selectAllCheckbox.style.display = 'block';
     bulkEditCard.style.display = 'block';
@@ -1334,39 +1362,165 @@ document.getElementById('cancel-bulk-edit').addEventListener('click', function()
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
     const bulkEditCard = document.getElementById('bulk-edit-card');
     
-    // Hide checkboxes and bulk edit card
+            // Hide checkboxes and bulk edit card
     checkboxes.forEach(cb => {
-        cb.style.display = 'none';
-        cb.checked = false;
-    });
+                cb.style.display = 'none';
+                cb.checked = false;
+            });
     selectAllCheckbox.style.display = 'none';
     selectAllCheckbox.checked = false;
     bulkEditCard.style.display = 'none';
 });
 
-document.getElementById('select-all-btn').addEventListener('click', function() {
-    const checkboxes = document.querySelectorAll('.transaction-checkbox');
+    document.getElementById('select-all-btn').addEventListener('click', function() {
+        const checkboxes = document.querySelectorAll('.transaction-checkbox');
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
     
-    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-    
-    checkboxes.forEach(cb => cb.checked = !allChecked);
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        
+        checkboxes.forEach(cb => cb.checked = !allChecked);
     selectAllCheckbox.checked = !allChecked;
     
-    updateSelectedCount();
-});
+        updateSelectedCount();
+    });
 
-// Update selected count
-function updateSelectedCount() {
+    // Update selected count
+    function updateSelectedCount() {
     const checked = document.querySelectorAll('.transaction-checkbox:checked').length;
     document.getElementById('selected-count').textContent = `${checked} transactions selected`;
-}
+    }
 
-// Listen for checkbox changes
+    // Listen for checkbox changes
 document.addEventListener('change', function(e) {
     if (e.target.classList.contains('transaction-checkbox')) {
         updateSelectedCount();
     }
 });
+
+// Apply bulk edit functionality
+    document.getElementById('apply-bulk-edit').addEventListener('click', function() {
+    const selectedCheckboxes = document.querySelectorAll('.transaction-checkbox:checked');
+    const newCategory = document.getElementById('bulk-category').value;
+        
+    if (selectedCheckboxes.length === 0) {
+        alert('Please select at least one transaction to edit.');
+            return;
+        }
+        
+    if (!newCategory) {
+        alert('Please select a category to apply.');
+        return;
+    }
+    
+    const transactionIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+    
+    // Show loading state
+    const applyBtn = this;
+    const originalText = applyBtn.innerHTML;
+    applyBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Applying...';
+    applyBtn.disabled = true;
+    
+    // Apply bulk edit
+    fetch('/api/transactions/bulk-edit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+            transaction_ids: transactionIds,
+                    category: newCategory
+        })
+            })
+            .then(response => response.json())
+            .then(data => {
+        if (!data.error) {
+            // Reload page to show updated transactions
+            window.location.reload();
+                } else {
+            alert('Error applying bulk edit: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+        alert('Error applying bulk edit: ' + error.message);
+    })
+    .finally(() => {
+        applyBtn.innerHTML = originalText;
+        applyBtn.disabled = false;
+    });
+});
+
+// Double-click to edit transaction functionality
+document.addEventListener('dblclick', function(e) {
+    // Check if double-click is on a transaction row (but not on action buttons)
+    const row = e.target.closest('tr[data-id]');
+    if (row && !e.target.closest('.action-dropdown') && !e.target.closest('.edit-actions')) {
+        const transactionId = row.getAttribute('data-id');
+        editTransaction(transactionId);
+    }
+});
+
+// Dynamic filtering functionality
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('filter-select') || e.target.classList.contains('filter-input')) {
+        // Small delay to allow for rapid changes
+        clearTimeout(window.filterTimeout);
+        window.filterTimeout = setTimeout(() => {
+            applyFilters();
+        }, 300);
+    }
+});
+
+function applyFilters() {
+    const form = document.getElementById('filter-form');
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    
+    // Add all non-empty form values to params
+    for (let [key, value] of formData.entries()) {
+        if (value.trim() !== '') {
+            params.append(key, value);
+        }
+    }
+    
+    // Update URL and reload page with filters
+    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.location.href = newUrl;
+}
+
+// Clear filters functionality
+document.getElementById('clear-filters').addEventListener('click', function() {
+    // Reset all filter inputs
+    document.querySelectorAll('.filter-select').forEach(select => select.value = '');
+    document.querySelectorAll('.filter-input').forEach(input => input.value = '');
+    
+    // Redirect to page without filters
+    window.location.href = window.location.pathname;
+});
+
+// Add click-away functionality to save transaction edits
+document.addEventListener('click', function(e) {
+    // Check if we're clicking outside an edit mode transaction
+    const editModeRows = document.querySelectorAll('tr[data-id] .edit-actions[style*="flex"]');
+    
+    editModeRows.forEach(editActions => {
+        const row = editActions.closest('tr[data-id]');
+        const transactionId = row.getAttribute('data-id');
+        
+        // If click is outside this row and not on interactive elements
+        if (!row.contains(e.target) && 
+            !e.target.closest('.modal') && 
+            !e.target.closest('.dropdown-menu') &&
+            !e.target.closest('.tag-dropdown') &&
+            !e.target.classList.contains('remove-btn') &&
+            !e.target.closest('.remove-btn') &&
+            !e.target.classList.contains('tag-chip') &&
+            !e.target.closest('.tag-chip') &&
+            !e.target.classList.contains('add-tag-btn') &&
+            !e.target.closest('.add-tag-btn')) {
+            saveTransaction(transactionId);
+        }
+    });
+});
 </script>
-{% endblock %} 
+{% endblock %}

@@ -1,0 +1,185 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "personal-finance-dashboard"
+version = "0.1.0"
+description = "A comprehensive personal finance dashboard for tracking transactions and managing finances"
+authors = [
+    {name = "Personal Finance Team", email = "team@personalfinance.com"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+dependencies = [
+    "Flask>=3.1.1",
+    "Flask-SQLAlchemy>=3.0.5",
+    "Flask-Migrate>=4.0.5",
+    "Werkzeug>=3.1.3",
+    "SQLAlchemy>=2.0.25",
+    "psycopg2-binary>=2.9.9",
+    "pandas>=2.2.1",
+    "python-dateutil>=2.9.0.post0",
+    "PyMuPDF>=1.23.14",
+    "pdfplumber>=0.10.3",
+    "python-dotenv>=1.0.0",
+    "gunicorn>=21.2.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.3",
+    "pytest-flask>=1.3.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "coverage>=7.0.0",
+]
+dev = [
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "pylint>=2.17.0",
+    "mypy>=1.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/personal-finance-dashboard"
+Repository = "https://github.com/yourusername/personal-finance-dashboard"
+Issues = "https://github.com/yourusername/personal-finance-dashboard/issues"
+
+[tool.black]
+line-length = 127
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 127
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_glob = ["migrations/*", "venv/*", ".venv/*"]
+known_first_party = ["parsers", "services", "models"]
+known_third_party = [
+    "flask",
+    "sqlalchemy",
+    "pandas",
+    "pytest",
+    "werkzeug",
+    "psycopg2",
+    "fitz",
+    "pdfplumber",
+    "dateutil",
+    "dotenv",
+    "gunicorn",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "parser: marks tests related to PDF parsing",
+    "api: marks tests related to API endpoints",
+    "database: marks tests that require database",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "venv/*",
+    ".venv/*",
+    "migrations/*",
+    "setup.py",
+    "*/site-packages/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+ignore_errors = true
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "fitz.*",
+    "pdfplumber.*",
+    "psycopg2.*",
+    "flask_sqlalchemy.*",
+    "flask_migrate.*",
+]
+ignore_missing_imports = true 

@@ -6,60 +6,75 @@ It identifies transactions based on the date column and uses transaction pattern
 transaction type (credit/debit).
 """
 
-import fitz  # PyMuPDF
 import re
 from datetime import datetime
 
+import fitz  # PyMuPDF
+
+
 def detect_hdfc_savings(pdf_path):
     """
-    Detect if a PDF file is an HDFC Bank savings account statement
-    
+    Detect if a PDF is an HDFC savings account statement
+
     Args:
-        pdf_path (str): Path to the PDF statement file
-        
+        pdf_path (str): Path to the PDF file
+
     Returns:
-        bool: True if the file is an HDFC Bank savings account statement
+        bool: True if it's an HDFC savings statement, False otherwise
     """
     try:
-        # Open PDF with PyMuPDF
         doc = fitz.open(pdf_path)
-        
-        # Extract text from the first page
         first_page_text = doc[0].get_text()
-        
-        # Close the document
         doc.close()
-        
-        # Check for structural elements common in HDFC statements
-        has_account_number = any(marker in first_page_text for marker in ["Account No", "Account Number"])
-        has_hdfc = any(marker in first_page_text for marker in ["HDFC", "HDFC BANK"])
-        has_transaction_section = any(marker in first_page_text for marker in ["Transaction Details", "Statement of account"])
-        has_balance_section = any(marker in first_page_text for marker in ["Opening Balance", "Closing Balance", "Balance"])
-        
-        # If it has most of the structural elements, consider it a valid statement
-        score = sum([has_account_number, has_hdfc, has_transaction_section, has_balance_section])
-        return score >= 3
-        
-    except Exception:
+
+        # Check for HDFC specific patterns
+        hdfc_patterns = [
+            r"HDFC BANK",
+            r"SAVINGS ACCOUNT",
+            r"SAVINGS ACCOUNT STATEMENT",
+            r"Account Number",
+            r"Statement Period",
+            r"Opening Balance",
+            r"Closing Balance",
+        ]
+
+        # Count how many patterns match
+        matches = 0
+        for pattern in hdfc_patterns:
+            if re.search(pattern, first_page_text, re.IGNORECASE):
+                matches += 1
+
+        # If we have HDFC BANK and SAVINGS ACCOUNT, that's distinctive enough
+        if re.search(r"HDFC BANK", first_page_text, re.IGNORECASE) and re.search(
+            r"SAVINGS ACCOUNT", first_page_text, re.IGNORECASE
+        ):
+            return True
+
+        # Otherwise, need at least 2 matches
+        return matches >= 2
+
+    except Exception as e:
+        print(f"Error detecting HDFC statement: {str(e)}")
         return False
+
 
 def parse_date(date_str, statement_year):
     """
     Parse a date string into a formatted date
-    
+
     Args:
         date_str (str): Date string to parse (DD/MM/YY format)
         statement_year (int): Year to use for dates without year
-        
+
     Returns:
         str: Formatted date in DD/MM/YYYY format, or None if parsing fails
     """
     try:
         # Convert YY to YYYY
-        if '/' in date_str:
-            day, month, year = date_str.split('/')
+        if "/" in date_str:
+            day, month, year = date_str.split("/")
             if len(year) == 2:
-                year = '20' + year
+                year = "20" + year
             date_obj = datetime.strptime(f"{day}/{month}/{year}", "%d/%m/%Y")
             return date_obj.strftime("%d/%m/%Y")
         else:
@@ -68,159 +83,174 @@ def parse_date(date_str, statement_year):
         print(f"Warning: Could not parse date format: {date_str}")
         return None
 
+
 def extract_statement_metadata(doc):
     """
     Extract metadata from the statement such as statement period, account holder, etc.
-    
+
     Args:
         doc: PyMuPDF document object
-        
+
     Returns:
         dict: Dictionary containing statement metadata
     """
     metadata = {
         "statement_year": datetime.now().year,  # Default to current year
         "account_holder": "Unknown",
-        "account_num": "Unknown"
+        "account_num": "Unknown",
     }
-    
+
     try:
         # Extract text from the first page
         first_page_text = doc[0].get_text()
-        
+
         # Extract statement period
-        statement_period_match = re.search(r'(\d{1,2}/\d{1,2}/\d{2})\s+to\s+(\d{1,2}/\d{1,2}/\d{2})', first_page_text)
+        statement_period_match = re.search(r"(\d{1,2}/\d{1,2}/\d{2})\s+to\s+(\d{1,2}/\d{1,2}/\d{2})", first_page_text)
         if statement_period_match:
             try:
                 end_date_str = statement_period_match.group(2)  # End date has format "DD/MM/YY"
-                day, month, year = end_date_str.split('/')
-                metadata["statement_year"] = int('20' + year)
-            except:
+                day, month, year = end_date_str.split("/")
+                metadata["statement_year"] = int("20" + year)
+            except (ValueError, IndexError):
                 print("Could not extract year from statement period, using current year")
-        
+
         # Extract account holder
-        account_holder_match = re.search(r'Account\s+Holder:\s*([A-Za-z\s]+)', first_page_text)
+        account_holder_match = re.search(r"Account\s+Holder:\s*([A-Za-z\s]+)", first_page_text)
         if account_holder_match:
             metadata["account_holder"] = account_holder_match.group(1).strip()
-            
+
         # Extract account number
-        account_num_match = re.search(r'Account\s+No:\s*(\d+)', first_page_text)
+        account_num_match = re.search(r"Account\s+No:\s*(\d+)", first_page_text)
         if account_num_match:
             metadata["account_num"] = account_num_match.group(1)
-            
+
     except Exception as e:
         print(f"Error extracting statement metadata: {str(e)}")
-        
+
     return metadata
+
 
 def extract_hdfc_savings(pdf_path):
     """
     Parse HDFC Bank statements using a tabular structure approach
-    
+
     Args:
         pdf_path (str): Path to the PDF statement file
-        
+
     Returns:
         list: List of transaction dictionaries with transaction details
     """
     transactions = []
-    
+
     try:
         # Open PDF with PyMuPDF
         doc = fitz.open(pdf_path)
         print(f"Processing statement file with {len(doc)} pages")
-        
+
         # Extract metadata
         metadata = extract_statement_metadata(doc)
-        
+
         # Extract transactions
         transactions = extract_transactions(doc, metadata["statement_year"])
         print(f"Found {len(transactions)} potential transactions to process")
-        
+
         # Sort transactions by date
         transactions.sort(key=lambda x: x["date"])
-        
+
     except Exception as e:
         print(f"Error processing HDFC statement: {str(e)}")
         return []
-    
+
     finally:
         # Close the PDF document
-        if 'doc' in locals() and doc:
+        if "doc" in locals() and doc:
             doc.close()
-    
+
     return transactions
+
 
 def extract_transactions(doc, statement_year):
     """
     Extract transactions from the document using a tabular approach
-    
+
     Args:
         doc: PyMuPDF document object
         statement_year (int): Year of the statement
-        
+
     Returns:
         list: List of transaction dictionaries
     """
     transactions = []
     current_date = None
-    current_description = None
-    
+
     # Process each page
     for page_num in range(len(doc)):
         page_text = doc[page_num].get_text()
-        lines = page_text.split('\n')
-        
+        lines = page_text.split("\n")
+
         # Process each line
         i = 0
         while i < len(lines):
             line = lines[i].strip()
-            
+
             # Skip empty lines and headers/footers
-            if not line or any(marker in line for marker in ["PAGE", "CONTACT US", "5AM - 6PM", "6PM - 5AM", "ISSUED BY", "Comment •", "Transaction Details", "Day/Night", "Amount", "Balance"]):
+            if not line or any(
+                marker in line
+                for marker in [
+                    "PAGE",
+                    "CONTACT US",
+                    "5AM - 6PM",
+                    "6PM - 5AM",
+                    "ISSUED BY",
+                    "Comment •",
+                    "Transaction Details",
+                    "Day/Night",
+                    "Amount",
+                    "Balance",
+                ]
+            ):
                 i += 1
                 continue
-            
+
             # Check for date line (e.g., "02 May")
-            date_match = re.match(r'^(\d{1,2}/\d{1,2}/\d{2})$', line)
+            date_match = re.match(r"^(\d{1,2}/\d{1,2}/\d{2})$", line)
             if date_match:
                 current_date = parse_date(date_match.group(1), statement_year)
-                current_description = None  # Reset description for new date
                 i += 1
                 continue
-            
+
             if not current_date:
                 i += 1
                 continue
-            
+
             # Look for transaction description
-            if re.match(r'^[A-Z0-9/\s\-]+$', line):
+            if re.match(r"^[A-Z0-9/\s\-]+$", line):
                 # Get amount and balance from next lines
                 amount = None
                 balance = None
-                
+
                 # Look for amount in next few lines
                 for j in range(1, 4):  # Look up to 3 lines ahead
                     if i + j < len(lines):
                         amount_line = lines[i + j].strip()
-                        if re.match(r'^[\d,]+\.\d{2}$', amount_line):
+                        if re.match(r"^[\d,]+\.\d{2}$", amount_line):
                             try:
                                 # Remove commas and convert to float
-                                amount = float(amount_line.replace(',', ''))
+                                amount = float(amount_line.replace(",", ""))
                                 # Look for balance in next line
                                 if i + j + 1 < len(lines):
                                     balance_line = lines[i + j + 1].strip()
-                                    if re.match(r'^[\d,]+\.\d{2}$', balance_line):
-                                        balance = float(balance_line.replace(',', ''))
+                                    if re.match(r"^[\d,]+\.\d{2}$", balance_line):
+                                        balance = float(balance_line.replace(",", ""))
                                         i = i + j + 2  # Skip processed lines
                                         break
                             except ValueError:
                                 pass
-                
+
                 if amount is not None and balance is not None:
                     # Determine if credit or debit
                     is_credit = False
-                    
+
                     # Check for credit indicators
                     if any(indicator in line for indicator in ["CREDIT", "SALARY", "INTEREST", "REFUND"]):
                         is_credit = True
@@ -231,9 +261,9 @@ def extract_transactions(doc, statement_year):
                     else:
                         # Compare with previous transaction's balance
                         if transactions:
-                            prev_balance = transactions[-1].get('balance', 0)
+                            prev_balance = transactions[-1].get("balance", 0)
                             is_credit = balance > prev_balance
-                    
+
                     # Create transaction dictionary
                     transaction = {
                         "date": current_date,
@@ -248,15 +278,15 @@ def extract_transactions(doc, statement_year):
                         "is_debit": not is_credit,
                         "transaction_id": f"{current_date}_{amount}_{len(transactions)}",
                         "balance": balance,
-                        "sort_key": (0, balance)  # Default priority
+                        "sort_key": (0, balance),  # Default priority
                     }
-                    
+
                     transactions.append(transaction)
                     continue
-            
+
             i += 1
-    
+
     # Sort transactions by date and sort key
     transactions.sort(key=lambda x: (x["date"], x.get("sort_key", (0, 0))))
-    
+
     return transactions
