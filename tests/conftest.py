@@ -1,6 +1,8 @@
 import os
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
 
 @pytest.fixture(scope="session")
 def test_data_dir():
@@ -9,12 +11,14 @@ def test_data_dir():
     os.makedirs(data_dir, exist_ok=True)
     return data_dir
 
+
 @pytest.fixture(scope="session")
 def uploads_dir():
     """Create and return the uploads directory"""
     uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
     os.makedirs(uploads_dir, exist_ok=True)
     return uploads_dir
+
 
 @pytest.fixture(scope="session")
 def mock_pdf_text():
@@ -48,6 +52,7 @@ def mock_pdf_text():
     ₹63,500.00
     """
 
+
 @pytest.fixture
 def mock_pdf_doc(mock_pdf_text):
     """Mock PDF document"""
@@ -56,4 +61,4 @@ def mock_pdf_doc(mock_pdf_text):
     mock_page.get_text.return_value = mock_pdf_text
     mock_doc.__getitem__.return_value = mock_page
     mock_doc.__len__.return_value = 1
-    return mock_doc 
+    return mock_doc
