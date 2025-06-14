@@ -36,12 +36,9 @@ echo "📤 Cleaning upload directory..."
 rm -rf uploads/*
 touch uploads/.gitkeep
 
-# Remove old data files after migration
+# Remove old data files - transactions.json removed for security
 echo "🗄️ Cleaning old data files..."
-if [ -f "data/transactions.json" ]; then
-    mv data/transactions.json data/transactions.json.backup
-    echo "   Backed up transactions.json to transactions.json.backup"
-fi
+# transactions.json removed - all data stored in database only
 
 # Remove unnecessary parsers (since we're focusing on manual entry)
 echo "📝 Archiving PDF parsers..."
