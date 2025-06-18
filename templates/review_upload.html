@@ -358,7 +358,7 @@
                 <p><strong>{{ transactions|length }}</strong> transactions extracted from your Federal Bank account statement</p>
             </div>
             <div class="action-buttons">
-                <button class="btn-subtle" onclick="window.location.href='{{ url_for('transactions') }}'">
+                <button class="btn-subtle" id="cancelBtn">
                     <i class="bi bi-arrow-left me-2"></i>Cancel
                 </button>
                 <button class="btn-primary-subtle" id="saveAllBtn">
@@ -696,6 +696,39 @@ document.getElementById('saveAllBtn').addEventListener('click', function() {
     .finally(() => {
         button.disabled = false;
         button.innerHTML = '<i class="bi bi-check-circle me-2"></i>Save All Transactions';
+    });
+});
+
+// Cancel upload
+document.getElementById('cancelBtn').addEventListener('click', function() {
+    const button = this;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Cancelling...';
+    
+    fetch('/api/upload/cancel', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '{{ url_for("transactions") }}';
+        } else {
+            // Even if cancel API fails, still redirect to clear the page
+            console.warn('Cancel API failed:', data.error);
+            window.location.href = '{{ url_for("transactions") }}';
+        }
+    })
+    .catch(error => {
+        // Even if cancel fails, still redirect to clear the page
+        console.warn('Cancel request failed:', error);
+        window.location.href = '{{ url_for("transactions") }}';
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-arrow-left me-2"></i>Cancel';
     });
 });
 </script>

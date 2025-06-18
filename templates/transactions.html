@@ -450,9 +450,9 @@
                         <option value="">All Accounts</option>
                         {% for bank in banks %}
                         <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                    {% endfor %}
+                </select>
+            </div>
                 <div class="col-md-2">
                     <label for="account" class="form-label">Account Type</label>
                     <select class="form-select filter-select" id="account" name="account">
@@ -461,8 +461,8 @@
                         <option value="{{ acc_type }}" {% if filters.account == acc_type %}selected{% endif %}>{{ acc_type }}</option>
                     {% endfor %}
                 </select>
-                </div>
-                <div class="col-md-2">
+            </div>
+            <div class="col-md-2">
                     <label for="category" class="form-label">Category</label>
                     <select class="form-select filter-select" id="category" name="category">
                     <option value="">All Categories</option>
@@ -470,20 +470,20 @@
                         <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
                     {% endfor %}
                 </select>
-                </div>
-                <div class="col-md-2">
+            </div>
+            <div class="col-md-2">
                     <label for="date_from" class="form-label">From Date</label>
                     <input type="date" class="form-control filter-input" id="date_from" name="date_from" value="{{ filters.date_from or '' }}">
                 </div>
                 <div class="col-md-2">
                     <label for="date_to" class="form-label">To Date</label>
                     <input type="date" class="form-control filter-input" id="date_to" name="date_to" value="{{ filters.date_to or '' }}">
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
                     <button type="button" class="btn btn-outline-secondary w-100" id="clear-filters">
                         <i class="bi bi-x-circle me-2"></i>Clear Filters
-                    </button>
-                </div>
+                </button>
+            </div>
         </form>
     </div>
 </div>
@@ -562,7 +562,7 @@
                                 <input type="date" class="form-control date-field" value="{{ transaction.date.strftime('%Y-%m-%d') if transaction.date else '' }}" />
                             </div>
                         </td>
-                                                <td>
+                        <td>
                             <div class="description-display">
                                 {{ transaction.description if transaction.description else 'No description' }}
                             </div>
@@ -1400,7 +1400,7 @@ document.addEventListener('change', function(e) {
 // Apply bulk edit functionality
     document.getElementById('apply-bulk-edit').addEventListener('click', function() {
     const selectedCheckboxes = document.querySelectorAll('.transaction-checkbox:checked');
-    const newCategory = document.getElementById('bulk-category').value;
+        const newCategory = document.getElementById('bulk-category').value;
         
     if (selectedCheckboxes.length === 0) {
         alert('Please select at least one transaction to edit.');
@@ -1521,6 +1521,6 @@ document.addEventListener('click', function(e) {
             saveTransaction(transactionId);
         }
     });
-});
+    });
 </script>
 {% endblock %}

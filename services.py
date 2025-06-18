@@ -3,14 +3,24 @@ from datetime import datetime
 from sqlalchemy import desc
 
 from models import Account, Category, Transaction, User, db
+from models.secure_transaction import SecureTransaction, SecureTransactionError
 
 
 class TransactionService:
+    """
+    Service layer for transaction operations using secure encrypted storage
+    """
+    
+    def __init__(self):
+        self.secure_transaction = SecureTransaction()
 
     @staticmethod
     def create_transaction(data):
-        """Create a new transaction"""
+        """Create a new transaction using secure encryption"""
         try:
+            # Initialize secure transaction handler
+            secure_tx = SecureTransaction()
+            
             # Parse date - handle both HTML date input format (YYYY-MM-DD) and legacy format (DD/MM/YYYY)
             if isinstance(data.get("date"), str):
                 date_str = data["date"]
@@ -27,186 +37,253 @@ class TransactionService:
             else:
                 date_obj = data.get("date", datetime.now().date())
 
-            transaction = Transaction(
-                date=date_obj,
-                description=data["description"],
-                amount=float(data["amount"]),
-                category=data.get("category", "Miscellaneous"),
-                subcategory=data.get("subcategory"),
-                account_id=data["account_id"],
-                is_debit=data.get("is_debit", True),
-                transaction_type=data.get("transaction_type", "manual"),
-                balance=data.get("balance"),
-                reference_number=data.get("reference_number"),
-                notes=data.get("notes"),
-            )
+            # Prepare transaction data
+            transaction_data = {
+                'date': date_obj,
+                'description': data["description"],
+                'amount': float(data["amount"]),
+                'category': data.get("category", "Miscellaneous"),
+                'subcategory': data.get("subcategory"),
+                'account_id': data["account_id"],
+                'is_debit': data.get("is_debit", True),
+                'transaction_type': data.get("transaction_type", "manual"),
+                'balance': data.get("balance"),
+                'reference_number': data.get("reference_number"),
+                'notes': data.get("notes"),
+                'tags': data.get("tags")
+            }
 
-            db.session.add(transaction)
-            db.session.commit()
+            # Create transaction using secure method
+            transaction_id = secure_tx.store_transaction_encrypted(
+                transaction_data, 
+                user_id=data.get('user_id')  # Pass user_id for audit logging
+            )
+            
+            # Return the created transaction
+            transaction = Transaction.query.get(transaction_id)
             return transaction
+            
+        except SecureTransactionError as e:
+            db.session.rollback()
+            raise e
         except Exception as e:
             db.session.rollback()
             raise e
 
     @staticmethod
     def update_transaction(transaction_id, data):
-        """Update an existing transaction"""
+        """Update an existing transaction using secure encryption"""
         try:
-            transaction = Transaction.query.get(transaction_id)
-            if not transaction:
-                return None
-
-            # Update basic fields
+            # Initialize secure transaction handler
+            secure_tx = SecureTransaction()
+            
+            # Prepare update data
+            updates = {}
+            
+            # Handle date update
             if "date" in data:
                 if isinstance(data["date"], str):
                     date_str = data["date"]
                     try:
                         # Try HTML date input format first (YYYY-MM-DD)
-                        transaction.date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                        updates['date'] = datetime.strptime(date_str, "%Y-%m-%d").date()
                     except ValueError:
                         try:
                             # Fall back to legacy format (DD/MM/YYYY)
-                            transaction.date = datetime.strptime(date_str, "%d/%m/%Y").date()
+                            updates['date'] = datetime.strptime(date_str, "%d/%m/%Y").date()
                         except ValueError:
-                            # If both fail, keep current date
+                            # If both fail, skip date update
                             pass
                 else:
-                    transaction.date = data["date"]
+                    updates['date'] = data["date"]
 
+            # Handle basic field updates
             if "description" in data:
-                transaction.description = data["description"]
+                updates['description'] = data["description"]
             if "amount" in data:
-                transaction.amount = float(data["amount"])
+                updates['amount'] = float(data["amount"])
             if "subcategory" in data:
-                transaction.subcategory = data["subcategory"]
+                updates['subcategory'] = data["subcategory"]
             if "account_id" in data:
-                transaction.account_id = data["account_id"]
+                updates['account_id'] = data["account_id"]
             if "is_debit" in data:
-                transaction.is_debit = data["is_debit"]
+                updates['is_debit'] = data["is_debit"]
             if "balance" in data:
-                transaction.balance = data["balance"]
+                updates['balance'] = data["balance"]
             if "reference_number" in data:
-                transaction.reference_number = data["reference_number"]
+                updates['reference_number'] = data["reference_number"]
             if "notes" in data:
-                transaction.notes = data["notes"]
+                updates['notes'] = data["notes"]
 
-            # Handle structured tags update - this is the key part
+            # Handle tags update
             if "tags" in data:
-                # Use the tags directly from the frontend
                 new_tags = data["tags"]
                 if isinstance(new_tags, dict):
-                    transaction.set_tags(new_tags)
-
-                    # Ensure category field is set from tags (for database constraint)
+                    updates['tags'] = new_tags
+                    # Ensure category field is set from tags
                     if "categories" in new_tags and new_tags["categories"]:
-                        transaction.category = new_tags["categories"][0]
-                    else:
-                        # If no categories in tags, keep current category or set default
-                        if not transaction.category:
-                            transaction.category = "Miscellaneous"
+                        updates['category'] = new_tags["categories"][0]
+                    elif 'category' not in updates:
+                        updates['category'] = "Miscellaneous"
                 else:
-                    # If tags is empty or invalid, set default category
-                    transaction.set_tags({})
-                    if not transaction.category:
-                        transaction.category = "Miscellaneous"
+                    updates['tags'] = {}
+                    if 'category' not in updates:
+                        updates['category'] = "Miscellaneous"
 
-            # Handle individual category update (legacy support)
+            # Handle individual category update
             if "category" in data:
                 if data["category"]:
-                    transaction.category = data["category"]
-                    # Also update tags for consistency
-                    current_tags = transaction.get_tags()
-                    if "categories" not in current_tags:
-                        current_tags["categories"] = []
-                    if data["category"] not in current_tags["categories"]:
-                        current_tags["categories"] = [data["category"]]  # Replace, don't append
-                    transaction.set_tags(current_tags)
+                    updates['category'] = data["category"]
                 else:
-                    # If trying to set category to null, use default
-                    transaction.category = "Miscellaneous"
+                    updates['category'] = "Miscellaneous"
 
-            # Handle legacy fields for backward compatibility
-            if "account_name" in data and data["account_name"]:
-                current_tags = transaction.get_tags()
-                if "accounts" not in current_tags:
-                    current_tags["accounts"] = []
-                if data["account_name"] not in current_tags["accounts"]:
-                    current_tags["accounts"] = [data["account_name"]]
-                transaction.set_tags(current_tags)
+            # Ensure category is never null
+            if 'category' in updates and (not updates['category'] or updates['category'].strip() == ""):
+                updates['category'] = "Miscellaneous"
 
-            # Ensure category is never null (database constraint)
-            if not transaction.category or transaction.category.strip() == "":
-                transaction.category = "Miscellaneous"
-
-            transaction.updated_at = datetime.utcnow()
-            db.session.commit()
-            return transaction
+            # Update transaction using secure method
+            success = secure_tx.update_transaction_encrypted(
+                transaction_id, 
+                updates, 
+                user_id=data.get('user_id')  # Pass user_id for audit logging
+            )
+            
+            if success:
+                # Return the updated transaction
+                transaction = Transaction.query.get(transaction_id)
+                return transaction
+            else:
+                return None
+                
+        except SecureTransactionError as e:
+            db.session.rollback()
+            raise e
         except Exception as e:
             db.session.rollback()
             raise e
 
     @staticmethod
     def delete_transaction(transaction_id):
-        """Delete a transaction"""
+        """Delete a transaction with audit logging"""
         try:
+            # For deletion, we'll use the secure transaction for audit logging
+            # but still use direct database deletion
+            secure_tx = SecureTransaction()
+            
             transaction = Transaction.query.get(transaction_id)
             if not transaction:
                 return False
 
+            # Log the deletion attempt
+            secure_tx._log_audit_action(
+                action='transaction_delete_attempt',
+                transaction_id=transaction_id,
+                details={
+                    'category': transaction.category,
+                    'amount': float(transaction.amount),
+                    'is_encrypted': transaction.is_encrypted
+                }
+            )
+
             db.session.delete(transaction)
             db.session.commit()
+            
+            # Log successful deletion
+            secure_tx._log_audit_action(
+                action='transaction_deleted',
+                transaction_id=transaction_id,
+                details={'deleted': True}
+            )
+            
             return True
+            
         except Exception as e:
             db.session.rollback()
+            # Log deletion failure
+            try:
+                secure_tx._log_audit_action(
+                    action='transaction_delete_failed',
+                    transaction_id=transaction_id,
+                    success=False,
+                    error_message=str(e)
+                )
+            except:
+                pass
             raise e
 
     @staticmethod
     def get_transactions_summary():
-        """Get summary statistics for transactions"""
+        """Get summary statistics for transactions with secure access"""
         try:
-            total_transactions = Transaction.query.count()
-
-            # Calculate totals manually
-            all_transactions = Transaction.query.all()
+            # Use secure transaction handler for getting decrypted data
+            secure_tx = SecureTransaction()
+            
+            # Log the summary request
+            secure_tx._log_audit_action(
+                action='transaction_summary_request',
+                details={'operation': 'get_summary_statistics'}
+            )
+            
+            # Get all transactions using secure method (decrypted)
+            all_transactions_data = secure_tx.get_transactions_decrypted(
+                user_id=None,  # For now, no user authentication
+                filters=None,
+                limit=None,  # Get all transactions
+                offset=None
+            )
+            
+            total_transactions = len(all_transactions_data)
             total_income = 0
             total_expenses = 0
 
-            for transaction in all_transactions:
-                if transaction.is_debit:
-                    total_expenses += abs(float(transaction.amount))
+            # Calculate totals from decrypted data
+            for transaction_data in all_transactions_data:
+                amount = float(transaction_data.get('amount', 0))
+                if transaction_data.get('is_debit', True):
+                    total_expenses += abs(amount)
                 else:
-                    total_income += float(transaction.amount)
+                    total_income += amount
 
             # Category summary for expenses only
-            category_stats = (
-                db.session.query(
-                    Transaction.category,
-                    db.func.sum(Transaction.amount).label("total"),
-                    db.func.count(Transaction.id).label("count"),
-                )
-                .filter(Transaction.is_debit == True, Transaction.category != "Income")
-                .group_by(Transaction.category)
-                .all()
-            )
-
-            # Account summary with income/expense breakdown - calculate manually
+            category_stats = {}
             account_stats = {}
-            for transaction in all_transactions:
-                account_name = transaction.account.name if transaction.account else "Unknown"
-                account_bank = transaction.account.bank if transaction.account else "Unknown"
+            
+            for transaction_data in all_transactions_data:
+                amount = float(transaction_data.get('amount', 0))
+                category = transaction_data.get('category', 'Miscellaneous')
+                account_name = transaction_data.get('account_name', 'Unknown')
+                account_bank = transaction_data.get('bank', 'Unknown')
+                is_debit = transaction_data.get('is_debit', True)
+                
+                # Category stats (expenses only)
+                if is_debit and category != "Income":
+                    if category not in category_stats:
+                        category_stats[category] = {'total': 0, 'count': 0}
+                    category_stats[category]['total'] += abs(amount)
+                    category_stats[category]['count'] += 1
 
+                # Account stats
                 if account_name not in account_stats:
-                    account_stats[account_name] = {"name": account_name, "bank": account_bank, "income": 0, "expenses": 0}
+                    account_stats[account_name] = {
+                        "name": account_name, 
+                        "bank": account_bank, 
+                        "income": 0, 
+                        "expenses": 0
+                    }
 
-                if transaction.is_debit:
-                    account_stats[account_name]["expenses"] += abs(float(transaction.amount))
+                if is_debit:
+                    account_stats[account_name]["expenses"] += abs(amount)
                 else:
-                    account_stats[account_name]["income"] += float(transaction.amount)
+                    account_stats[account_name]["income"] += amount
 
             # Format category summary
             category_summary = []
-            for category, total, count in category_stats:
-                category_summary.append({"name": category, "total": float(abs(total)), "count": count})
+            for category, stats in category_stats.items():
+                category_summary.append({
+                    "name": category, 
+                    "total": stats['total'], 
+                    "count": stats['count']
+                })
 
             # Sort by total (highest first)
             category_summary.sort(key=lambda x: x["total"], reverse=True)
@@ -224,6 +301,24 @@ class TransactionService:
                     }
                 )
 
+            # Format category distribution
+            category_distribution = []
+            for category, stats in category_stats.items():
+                category_distribution.append({
+                    "category": category, 
+                    "total": stats['total'], 
+                    "count": stats['count']
+                })
+
+            # Format account distribution
+            account_distribution = []
+            for account_data in account_stats.values():
+                account_distribution.append({
+                    "account": account_data["name"],
+                    "total": account_data["expenses"],
+                    "count": 1,  # Simplified count
+                })
+
             return {
                 "total_transactions": total_transactions,
                 "total_income": total_income,
@@ -231,17 +326,8 @@ class TransactionService:
                 "net_balance": total_income - total_expenses,
                 "category_summary": category_summary,
                 "account_summary": account_summary,
-                "category_distribution": [
-                    {"category": cat, "total": float(total), "count": count} for cat, total, count in category_stats
-                ],
-                "account_distribution": [
-                    {
-                        "account": acc_data["name"],
-                        "total": acc_data["expenses"],
-                        "count": 1,  # We don't have count per account in our current structure
-                    }
-                    for acc_data in account_stats.values()
-                ],
+                "category_distribution": category_distribution,
+                "account_distribution": account_distribution,
             }
         except Exception as e:
             print(f"Error getting transaction summary: {e}")
