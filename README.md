@@ -1,363 +1,340 @@
 # Personal Finance Dashboard 💰
 
-A modern, production-ready personal finance management application built with Flask, PostgreSQL, and deployed on AWS.
+A comprehensive personal finance management application built with Flask, featuring intelligent transaction parsing, secure data encryption, and advanced analytics.
 
 ## 🌟 Features
 
-- **Manual Transaction Entry**: Easy-to-use interface for adding income and expenses
-- **Smart Categorization**: Automatic transaction categorization with machine learning
-- **Interactive Dashboard**: Beautiful charts and analytics with Chart.js
-- **Multi-Account Support**: Manage multiple bank accounts and credit cards
-- **Responsive Design**: Works perfectly on desktop and mobile devices
-- **Real-time Updates**: Live dashboard updates without page refreshes
-- **Data Export**: Export transactions to CSV/Excel
-- **Cloud-Ready**: Containerized and ready for AWS deployment
+### Core Functionality
+- **Multi-Bank Statement Parsing**: Automatic extraction from PDF statements (Federal Bank, HDFC, and more)
+- **Universal LLM Parser**: AI-powered transaction parsing with automatic categorization
+- **Manual Transaction Entry**: Quick manual transaction input with intelligent categorization
+- **Secure Data Storage**: Field-level encryption for sensitive transaction data
+- **Real-time Analytics**: Interactive dashboards with charts and insights
+
+### Advanced Features
+- **Intelligent Categorization**: LLM-powered automatic transaction categorization
+- **Account Management**: Multi-account support with account-specific analytics
+- **Transaction Filtering**: Advanced filtering by date, category, account, and amount
+- **Audit Logging**: Comprehensive audit trail for all transaction operations
+- **Responsive Design**: Modern, mobile-friendly interface
+
+### Security & Privacy
+- **Field-Level Encryption**: Sensitive data encrypted using Fernet symmetric encryption
+- **Audit Logging**: Complete audit trail for compliance and security
+- **Environment-Based Configuration**: Secure configuration via environment variables
+- **Data Validation**: Comprehensive input validation and sanitization
 
 ## 🏗️ Architecture
 
-### Technology Stack
-
-- **Backend**: Flask 3.1.1 with SQLAlchemy ORM
-- **Database**: PostgreSQL (AWS RDS in production)
-- **Frontend**: Bootstrap 5 + Chart.js + Vanilla JavaScript
-- **Containerization**: Docker with multi-stage builds
-- **Cloud Platform**: AWS (ECS Fargate + RDS + ALB)
-- **Infrastructure as Code**: Terraform
-- **CI/CD**: GitHub Actions
-
 ### System Architecture
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend       │    │   Database      │
+│   (Jinja2)      │◄──►│   (Flask)       │◄──►│   (SQLite)      │
+│   Bootstrap 5   │    │   SQLAlchemy    │    │   Encrypted     │
+│   Chart.js      │    │   Secure Trans. │    │   Fields        │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │   LLM Services  │
+                    │   (OpenAI/      │
+                    │   Anthropic)    │
+                    └─────────────────┘
+```
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Application    │    │   Load Balancer  │    │   ECS Fargate   │
-│  Load Balancer  │◄──►│      (ALB)       │◄──►│    Cluster      │
-│     (ALB)       │    │                  │    │                 │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                                         │
-                                                         ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│    ECR          │    │   CloudWatch     │    │   RDS           │
-│  Container      │    │     Logs         │    │  PostgreSQL     │
-│  Registry       │    │                  │    │                 │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
+### Key Components
+
+#### 1. **Universal LLM Parser** (`parsers/universal_llm_parser.py`)
+- **Primary parsing method**: Uses LLM to extract and categorize transactions
+- **Fallback mechanism**: Falls back to traditional parsers if LLM fails
+- **Automatic categorization**: Intelligent category assignment
+- **Format validation**: Ensures consistent transaction format
+
+#### 2. **Secure Transaction System** (`models/secure_transaction.py`)
+- **Encryption**: Automatic encryption of sensitive fields
+- **Audit logging**: Complete operation tracking
+- **Backward compatibility**: Works with existing unencrypted data
+- **User context**: User-specific access controls
+
+#### 3. **LLM Service Layer** (`llm_services/llm_service.py`)
+- **Multi-provider support**: OpenAI and Anthropic Claude
+- **Timeout handling**: Optimized timeouts for different operations
+- **Retry logic**: Exponential backoff for failed requests
+- **Performance optimization**: Fast categorization (2-8 seconds avg)
+
+#### 4. **Traditional Parsers** (`parsers/`)
+- **Bank-specific parsers**: Specialized parsers for different banks
+- **PDF processing**: Advanced PDF text extraction
+- **Pattern matching**: Regex-based transaction extraction
+- **Data normalization**: Consistent transaction format
 
 ## 🚀 Quick Start
 
-### Local Development
+### Prerequisites
+- Python 3.8+
+- SQLite 3
+- Git
+
+### Installation
 
 1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd personal-finance-dashboard
-   ```
+```bash
+git clone <repository-url>
+cd personal-finance-dashboard
+```
 
-2. **Run with Docker Compose**
-   ```bash
-   docker-compose up --build
-   ```
+2. **Set up virtual environment**
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-3. **Access the application**
-   - Open http://localhost:5000
-   - Start adding transactions using the floating + button
+3. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
 
-### Manual Setup (Alternative)
+4. **Environment Configuration**
+```bash
+cp env.example .env
+# Edit .env with your configuration
+```
 
-1. **Set up Python environment**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements_new.txt
-   ```
+5. **Database Setup**
+```bash
+python init_db.py
+```
 
-2. **Set up PostgreSQL database**
-   ```bash
-   # Install PostgreSQL locally or use Docker
-   docker run --name postgres-finance -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:15
-   ```
+6. **Run the application**
+```bash
+python app.py
+```
 
-3. **Configure environment variables**
-   ```bash
-   cp env.example .env
-   # Edit .env with your database credentials
-   ```
+Visit `http://localhost:5000` to access the dashboard.
 
-4. **Run the application**
-   ```bash
-   python app_new.py
-   ```
-
-## 🔧 Configuration
+## ⚙️ Configuration
 
 ### Environment Variables
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `FLASK_ENV` | Environment (development/production) | No | development |
-| `SECRET_KEY` | Flask secret key | Yes | - |
-| `DATABASE_URL` | PostgreSQL connection string | Yes | - |
-| `DB_USER` | Database username | No | postgres |
-| `DB_PASSWORD` | Database password | Yes | - |
-| `DB_HOST` | Database host | No | localhost |
-| `DB_PORT` | Database port | No | 5432 |
-| `DB_NAME` | Database name | No | personal_finance |
-
-### Database Migration
-
-The application uses Flask-Migrate for database schema management:
+Create a `.env` file with the following variables:
 
 ```bash
-# Initialize migration repository
-flask db init
+# Database Configuration
+DATABASE_URL=sqlite:///finance.db
+DB_ENCRYPTION_KEY=your-32-character-encryption-key
 
-# Create migration
-flask db migrate -m "Description"
+# LLM Configuration
+OPENAI_API_KEY=your-openai-api-key
+ANTHROPIC_API_KEY=your-anthropic-api-key
+ENABLE_LLM_PARSING=true
 
-# Apply migration
-flask db upgrade
+# Application Configuration
+FLASK_ENV=development
+SECRET_KEY=your-secret-key
+DEBUG=true
 ```
 
-## 🌐 Deployment
+### Key Configuration Options
 
-### AWS Deployment
+- **`ENABLE_LLM_PARSING`**: Enable/disable LLM-powered parsing
+- **`DB_ENCRYPTION_KEY`**: 32-character key for field-level encryption
+- **LLM API Keys**: Required for intelligent parsing and categorization
 
-#### Prerequisites
+## 📊 Usage
 
-1. **Install required tools**
-   ```bash
-   # AWS CLI
-   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-   unzip awscliv2.zip
-   sudo ./aws/install
-   
-   # Terraform
-   wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
-   unzip terraform_1.6.0_linux_amd64.zip
-   sudo mv terraform /usr/local/bin/
-   
-   # Docker (if not already installed)
-   sudo apt-get update
-   sudo apt-get install docker.io
-   ```
+### Uploading Statements
+1. Click "Upload Statement" on the dashboard
+2. Select your bank and account type
+3. Upload PDF/CSV/Excel file
+4. Review extracted transactions
+5. Confirm to save to database
 
-2. **Configure AWS credentials**
-   ```bash
-   aws configure
-   # Enter your AWS Access Key ID, Secret Access Key, and region
-   ```
+### Manual Transactions
+1. Click "Add Transaction" on the dashboard
+2. Fill in transaction details
+3. Select transaction type (Income/Expense)
+4. Choose category or let AI categorize
+5. Save transaction
 
-#### One-Click Deployment
+### Analytics & Insights
+- **Dashboard**: Overview of financial health
+- **Transactions**: Detailed transaction history with filtering
+- **Charts**: Visual analytics with Chart.js
+- **Account Summary**: Per-account breakdown
 
-```bash
-# Make deployment script executable
-chmod +x scripts/deploy.sh
+## 🔧 Development
 
-# Deploy to staging
-./scripts/deploy.sh staging
-
-# Deploy to production
-./scripts/deploy.sh production
+### Project Structure
+```
+personal-finance-dashboard/
+├── app.py                 # Main Flask application
+├── config.py             # Configuration management
+├── services.py           # Business logic layer
+├── init_db.py           # Database initialization
+├── models/              # Database models
+│   ├── models.py        # Core models
+│   └── secure_transaction.py  # Encryption layer
+├── parsers/             # Transaction parsers
+│   ├── universal_llm_parser.py  # LLM parser
+│   ├── federal_bank_parser.py   # Bank parsers
+│   └── ...
+├── llm_services/        # LLM integration
+│   └── llm_service.py
+├── utils/               # Utilities
+│   └── encryption.py    # Encryption utilities
+├── templates/           # Jinja2 templates
+├── static/              # CSS, JS, images
+├── tests/               # Test suite
+├── migrations/          # Database migrations
+└── scripts/             # Utility scripts
 ```
 
-#### Manual Deployment Steps
-
-1. **Deploy Infrastructure**
-   ```bash
-   cd terraform
-   terraform init
-   terraform plan -var="environment=production" -var="db_password=your-secure-password"
-   terraform apply
-   ```
-
-2. **Build and Push Docker Image**
-   ```bash
-   # Get ECR login
-   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
-   
-   # Build and push
-   docker build -t personal-finance .
-   docker tag personal-finance:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/personal-finance:latest
-   docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/personal-finance:latest
-   ```
-
-3. **Update ECS Service**
-   ```bash
-   aws ecs update-service --cluster personal-finance-cluster --service personal-finance-service --force-new-deployment
-   ```
-
-### GitHub Actions CI/CD
-
-The repository includes automated CI/CD pipeline:
-
-1. **Set up GitHub Secrets**
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
-
-2. **Push to main branch**
-   ```bash
-   git push origin main
-   ```
-
-The pipeline will automatically:
-- Run tests
-- Build Docker image
-- Push to ECR
-- Deploy to ECS
-- Run database migrations
-
-## 📊 API Documentation
-
-### Endpoints
-
-#### Transactions
-
-- `GET /api/transactions` - List transactions
-- `POST /api/transactions` - Create transaction
-- `PUT /api/transactions/<id>` - Update transaction
-- `DELETE /api/transactions/<id>` - Delete transaction
-
-#### Dashboard
-
-- `GET /api/dashboard/summary` - Get dashboard summary
-- `GET /api/charts/category-distribution` - Category breakdown
-- `GET /api/charts/monthly-trend` - Monthly income/expense trend
-
-#### Example: Create Transaction
-
-```javascript
-POST /api/transactions
-Content-Type: application/json
-
-{
-  "date": "25/12/2024",
-  "description": "Grocery shopping",
-  "amount": 150.75,
-  "is_debit": true,
-  "category": "Food",
-  "account_id": 1,
-  "notes": "Weekly groceries"
-}
-```
-
-## 🧪 Testing
-
+### Running Tests
 ```bash
 # Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app_new
+python -m pytest tests/
 
 # Run specific test file
-pytest tests/test_transactions.py
+python -m pytest tests/test_universal_parser.py
+
+# Run with coverage
+python -m pytest --cov=. tests/
 ```
 
-## 🔒 Security
+### Adding New Bank Parsers
+1. Create parser in `parsers/` directory
+2. Implement standard interface
+3. Add to universal parser mapping
+4. Add tests in `tests/test_parsers.py`
 
-### Production Security Features
+## 🐳 Deployment
 
-- **Environment-based configuration**
-- **Database connection encryption**
-- **Secure container runtime**
-- **VPC isolation**
-- **Security group restrictions**
-- **IAM role-based access**
+### Docker Deployment
 
-### Security Checklist
+1. **Build the image**
+```bash
+docker build -t finance-dashboard .
+```
 
-- [ ] Change default secret keys
-- [ ] Use strong database passwords
-- [ ] Enable HTTPS in production
-- [ ] Regular security updates
-- [ ] Monitor CloudWatch logs
-- [ ] Set up AWS CloudTrail
+2. **Run with Docker Compose**
+```bash
+docker-compose up -d
+```
 
-## 📈 Monitoring & Maintenance
+### Production Configuration
 
-### CloudWatch Monitoring
+1. **Set production environment variables**
+```bash
+FLASK_ENV=production
+DEBUG=false
+DB_ENCRYPTION_KEY=<secure-32-char-key>
+```
 
-- **Application logs**: `/ecs/personal-finance`
-- **Health checks**: Load balancer health checks
-- **Database monitoring**: RDS CloudWatch metrics
+2. **Use production database**
+```bash
+DATABASE_URL=postgresql://user:pass@host:port/dbname
+```
 
-### Backup Strategy
+3. **Configure reverse proxy** (nginx recommended)
 
-- **Database**: Automated RDS backups (7-day retention)
-- **Application**: Versioned container images in ECR
+### AWS Deployment
+- ECS task definition available in `.aws/`
+- Terraform configuration in `terraform/`
+- GitHub Actions workflow for CI/CD
 
-### Performance Optimization
+## 🔒 Security Features
 
-- **Database indexing**: Indexed on date and category fields
-- **Connection pooling**: SQLAlchemy connection pooling
-- **Static file serving**: Served through CDN (future enhancement)
+### Data Encryption
+- **Field-level encryption** for sensitive transaction data
+- **Fernet symmetric encryption** with secure key derivation
+- **Automatic encryption/decryption** transparent to application logic
+
+### Audit Logging
+- **Complete audit trail** for all transaction operations
+- **User context tracking** with IP and user agent
+- **Security event logging** for compliance
+
+### Input Validation
+- **Comprehensive validation** for all user inputs
+- **SQL injection prevention** via SQLAlchemy ORM
+- **XSS protection** via template escaping
+
+## 🤖 LLM Integration
+
+### Supported Providers
+- **OpenAI GPT-4**: Primary LLM for parsing and categorization
+- **Anthropic Claude**: Alternative LLM provider
+- **Configurable timeouts**: Optimized for different operations
+
+### Performance Optimizations
+- **Smart timeout handling**: 15s for categorization, 60s for parsing
+- **Retry logic**: Exponential backoff for failed requests
+- **Fallback mechanisms**: Traditional parsers as backup
+
+### Cost Optimization
+- **Efficient prompts**: Optimized for minimal token usage
+- **Caching**: Avoid redundant API calls
+- **Selective usage**: Only for complex parsing tasks
+
+## 📈 Performance
+
+### Database Performance
+- **Indexed queries**: Optimized database indexes
+- **Connection pooling**: Efficient database connections
+- **Query optimization**: Minimized N+1 queries
+
+### Application Performance
+- **Lazy loading**: Efficient data loading
+- **Caching**: Strategic caching of expensive operations
+- **Async processing**: Background processing for heavy tasks
+
+## 🧪 Testing Strategy
+
+### Test Coverage
+- **Unit tests**: Individual component testing
+- **Integration tests**: End-to-end workflow testing
+- **Parser tests**: Comprehensive parser validation
+- **Security tests**: Encryption and audit logging
+
+### Test Data
+- **Sample statements**: Test data for all supported banks
+- **Edge cases**: Handling of malformed data
+- **Performance tests**: Load testing for large datasets
 
 ## 🤝 Contributing
 
+### Development Workflow
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Make changes with tests
+4. Ensure all tests pass
+5. Submit pull request
 
-### Development Guidelines
+### Code Standards
+- **PEP 8**: Python code style
+- **Type hints**: Use type annotations
+- **Documentation**: Comprehensive docstrings
+- **Testing**: Test all new features
 
-- Follow PEP 8 for Python code
-- Write tests for new features
-- Update documentation
-- Use meaningful commit messages
-
-## 📄 License
+## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## 🙏 Acknowledgments
 
-### Common Issues
+- **OpenAI** for GPT-4 API
+- **Anthropic** for Claude API
+- **Flask** community for excellent framework
+- **Bootstrap** for responsive UI components
 
-1. **Database connection errors**
-   - Check DATABASE_URL format
-   - Verify PostgreSQL is running
-   - Check network connectivity
+## 📞 Support
 
-2. **Docker build failures**
-   - Update Docker to latest version
-   - Check Dockerfile syntax
-   - Verify base image availability
-
-3. **AWS deployment issues**
-   - Verify AWS credentials
-   - Check IAM permissions
-   - Review CloudWatch logs
-
-### Getting Help
-
-- Check the [Issues](../../issues) page
-- Review CloudWatch logs for errors
-- Check application health endpoint: `/health`
-
-## 🗺️ Roadmap
-
-### Phase 1: Core Features ✅
-- [x] Manual transaction entry
-- [x] Dashboard with charts
-- [x] Database integration
-- [x] Docker containerization
-- [x] AWS deployment
-
-### Phase 2: Enhanced Features (Coming Soon)
-- [ ] User authentication
-- [ ] PDF statement parsing (premium feature)
-- [ ] Mobile app (React Native)
-- [ ] API authentication
-- [ ] Advanced analytics
-
-### Phase 3: Enterprise Features
-- [ ] Multi-tenant support
-- [ ] Advanced reporting
-- [ ] Integration with banks
-- [ ] Machine learning insights
-- [ ] Automated categorization
+For support and questions:
+- Create an issue on GitHub
+- Check existing documentation
+- Review test cases for examples
 
 ---
 
-**Made with ❤️ for better financial management** 
+**Built with ❤️ for better financial management**

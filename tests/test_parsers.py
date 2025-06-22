@@ -6,6 +6,8 @@ Comprehensive test suite for PDF parsers.
 This module tests the PDF parsing functionality for different bank statement formats,
 including Federal Bank and HDFC Bank statements. The tests use mocked PDF content
 to ensure consistent and reliable testing without requiring actual PDF files.
+
+Updated to include Universal LLM Parser integration tests.
 """
 
 import os
@@ -32,6 +34,13 @@ try:
     HDFC_PARSER_AVAILABLE = True
 except ImportError:
     HDFC_PARSER_AVAILABLE = False
+
+# Import universal parser for integration tests
+try:
+    from parsers.universal_llm_parser import parse_bank_statement, UniversalLLMParser
+    UNIVERSAL_PARSER_AVAILABLE = True
+except ImportError:
+    UNIVERSAL_PARSER_AVAILABLE = False
 
 
 @pytest.fixture
@@ -430,6 +439,213 @@ class TestParserIntegration:
                     assert tx["amount"] > 0
                 elif tx["type"] == "debit":
                     assert tx["amount"] < 0
+
+
+@pytest.mark.skipif(not UNIVERSAL_PARSER_AVAILABLE, reason="Universal parser not available")
+class TestUniversalParserIntegration:
+    """Test Universal Parser integration with existing parsers."""
+
+    @patch('parsers.universal_llm_parser.LLMService')
+    def test_universal_parser_fallback_to_federal_bank(self, mock_llm_service_class):
+        """Test that universal parser falls back to Federal Bank parser correctly."""
+        # Setup LLM service to fail
+        mock_llm_service = MagicMock()
+        mock_llm_service.parse_bank_statement.side_effect = Exception("LLM failed")
+        mock_llm_service.categorize_transaction.return_value = "Other"
+        mock_llm_service_class.return_value = mock_llm_service
+        
+        # Mock Federal Bank parser
+        with patch('parsers.universal_llm_parser.extract_federal_bank_savings') as mock_fb_parser:
+            mock_fb_parser.return_value = [
+                {
+                    "date": "01/05/2024",
+                    "description": "TEST TRANSACTION",
+                    "amount": 1000.00,
+                    "type": "credit",
+                    "balance": 11000.00
+                }
+            ]
+            
+            pdf_text = "FEDERAL BANK\nSAVINGS A/C NO: 12345678901"
+            result = parse_bank_statement(pdf_text, "Federal Bank", enable_llm=True)
+            
+            # Verify fallback occurred
+            mock_fb_parser.assert_called_once()
+            assert len(result) == 1
+            assert result[0]["description"] == "TEST TRANSACTION"
+            assert "category" in result[0]
+
+    @patch('parsers.universal_llm_parser.LLMService')
+    def test_universal_parser_fallback_to_hdfc(self, mock_llm_service_class):
+        """Test that universal parser falls back to HDFC parser correctly."""
+        # Setup LLM service to fail
+        mock_llm_service = MagicMock()
+        mock_llm_service.parse_bank_statement.side_effect = Exception("LLM failed")
+        mock_llm_service.categorize_transaction.return_value = "Other"
+        mock_llm_service_class.return_value = mock_llm_service
+        
+        # Mock HDFC parser
+        with patch('parsers.universal_llm_parser.extract_hdfc_savings') as mock_hdfc_parser:
+            mock_hdfc_parser.return_value = [
+                {
+                    "date": "01/05/2024",
+                    "description": "HDFC TEST TRANSACTION",
+                    "amount": -500.00,
+                    "type": "debit",
+                    "balance": 9500.00
+                }
+            ]
+            
+            pdf_text = "HDFC BANK\nSAVINGS ACCOUNT STATEMENT"
+            result = parse_bank_statement(pdf_text, "HDFC Bank", enable_llm=True)
+            
+            # Verify fallback occurred
+            mock_hdfc_parser.assert_called_once()
+            assert len(result) == 1
+            assert result[0]["description"] == "HDFC TEST TRANSACTION"
+            assert "category" in result[0]
+
+    @patch.dict(os.environ, {'ENABLE_LLM_PARSING': 'false'})
+    def test_universal_parser_disabled_via_env(self):
+        """Test that universal parser respects ENABLE_LLM_PARSING=false."""
+        # Mock Federal Bank parser
+        with patch('parsers.universal_llm_parser.extract_federal_bank_savings') as mock_fb_parser:
+            mock_fb_parser.return_value = [
+                {
+                    "date": "01/05/2024",
+                    "description": "ENV TEST TRANSACTION",
+                    "amount": 2000.00,
+                    "type": "credit",
+                    "balance": 12000.00
+                }
+            ]
+            
+            # Mock LLM service for categorization only
+            with patch('parsers.universal_llm_parser.LLMService') as mock_llm_service_class:
+                mock_llm_service = MagicMock()
+                mock_llm_service.categorize_transaction.return_value = "Income"
+                mock_llm_service_class.return_value = mock_llm_service
+                
+                pdf_text = "FEDERAL BANK\nSAVINGS A/C NO: 12345678901"
+                result = parse_bank_statement(pdf_text, "Federal Bank", enable_llm=False)
+                
+                # Verify traditional parser was used
+                mock_fb_parser.assert_called_once()
+                
+                # Verify LLM parsing was not attempted
+                mock_llm_service.parse_bank_statement.assert_not_called()
+                
+                # Verify result structure
+                assert len(result) == 1
+                assert result[0]["description"] == "ENV TEST TRANSACTION"
+
+    def test_universal_parser_output_compatibility(self):
+        """Test that universal parser output is compatible with existing app expectations."""
+        with patch('parsers.universal_llm_parser.LLMService') as mock_llm_service_class:
+            mock_llm_service = MagicMock()
+            mock_llm_service.parse_bank_statement.return_value = {
+                "transactions": [
+                    {
+                        "date": "01/05/2024",
+                        "description": "COMPATIBILITY TEST",
+                        "amount": 1500.00,
+                        "transaction_type": "credit"
+                    }
+                ]
+            }
+            mock_llm_service.categorize_transaction.return_value = "Income"
+            mock_llm_service_class.return_value = mock_llm_service
+            
+            pdf_text = "FEDERAL BANK\nSAVINGS A/C NO: 12345678901"
+            result = parse_bank_statement(pdf_text, "Federal Bank", enable_llm=True)
+            
+            # Verify output format matches app expectations
+            assert isinstance(result, list)
+            assert len(result) == 1
+            
+            transaction = result[0]
+            
+            # Required fields for app compatibility
+            required_fields = ["date", "description", "amount", "category"]
+            for field in required_fields:
+                assert field in transaction, f"Missing required field: {field}"
+            
+            # Data types
+            assert isinstance(transaction["date"], str)
+            assert isinstance(transaction["description"], str)
+            assert isinstance(transaction["amount"], (int, float))
+            assert isinstance(transaction["category"], str)
+            
+            # Additional universal parser fields
+            assert "categorization_method" in transaction
+            assert transaction["categorization_method"] in ["llm", "fallback", "default"]
+
+    @patch('parsers.universal_llm_parser.LLMService')
+    def test_universal_parser_error_recovery(self, mock_llm_service_class):
+        """Test that universal parser recovers gracefully from various errors."""
+        # Test LLM service initialization failure
+        mock_llm_service_class.side_effect = Exception("LLM init failed")
+        
+        with patch('parsers.universal_llm_parser.extract_federal_bank_savings') as mock_fb_parser:
+            mock_fb_parser.return_value = [
+                {
+                    "date": "01/05/2024",
+                    "description": "ERROR RECOVERY TEST",
+                    "amount": 1000.00,
+                    "type": "credit",
+                    "balance": 11000.00
+                }
+            ]
+            
+            pdf_text = "FEDERAL BANK\nSAVINGS A/C NO: 12345678901"
+            
+            # Should not raise exception, should fallback gracefully
+            result = parse_bank_statement(pdf_text, "Federal Bank", enable_llm=True)
+            
+            # Verify fallback occurred
+            mock_fb_parser.assert_called_once()
+            assert len(result) == 1
+            assert result[0]["description"] == "ERROR RECOVERY TEST"
+
+    def test_backward_compatibility_with_existing_tests(self):
+        """Test that existing parser functions still work as expected."""
+        # Test Federal Bank parser directly
+        with patch("fitz.open") as mock_open:
+            mock_doc = MagicMock()
+            mock_page = MagicMock()
+            mock_page.get_text.return_value = """
+            SAVINGS A/C NO: 12345678901
+            
+            01 May
+            UPI/CR/123456/PAYMENT
+            5,000.00
+            15,000.00
+            """
+            mock_doc.__getitem__.return_value = mock_page
+            mock_doc.__len__.return_value = 1
+            mock_open.return_value = mock_doc
+
+            # Direct parser call should still work
+            transactions = extract_federal_bank_savings("test.pdf")
+            assert isinstance(transactions, list)
+            
+            # Universal parser should also work with same data
+            pdf_text = mock_page.get_text.return_value
+            
+            with patch('parsers.universal_llm_parser.LLMService') as mock_llm_service_class:
+                mock_llm_service = MagicMock()
+                mock_llm_service.parse_bank_statement.side_effect = Exception("Use fallback")
+                mock_llm_service.categorize_transaction.return_value = "Other"
+                mock_llm_service_class.return_value = mock_llm_service
+                
+                universal_result = parse_bank_statement(pdf_text, "Federal Bank", enable_llm=True)
+                
+                # Both should return valid results
+                assert isinstance(universal_result, list)
+                
+                # Universal parser should add categorization
+                if universal_result:
+                    assert "category" in universal_result[0]
 
 
 if __name__ == "__main__":

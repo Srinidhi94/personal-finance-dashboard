@@ -68,6 +68,18 @@ docker-down-clean:
 	@echo "Stopping Docker containers and removing volumes..."
 	docker-compose down -v
 
+# Stop Docker containers (alias for docker-down)
+docker-stop:
+	@echo "Stopping Docker containers (keeping data)..."
+	docker-compose down
+
+# Stop Docker containers and remove all data including volumes
+docker-clean-all:
+	@echo "Stopping Docker containers and removing all data..."
+	docker-compose down -v
+	docker volume prune -f
+	@echo "All data has been removed!"
+
 # View Docker logs
 docker-logs:
 	@echo "Showing Docker logs..."
@@ -210,8 +222,10 @@ help:
 	@echo "  make docker-build      - Build Docker image"
 	@echo "  make docker-up         - Start with Docker Compose (background)"
 	@echo "  make docker-up-logs    - Start with Docker Compose (with logs)"
-	@echo "  make docker-down       - Stop Docker containers"
+	@echo "  make docker-down       - Stop Docker containers (keep data)"
+	@echo "  make docker-stop       - Stop Docker containers (keep data)"
 	@echo "  make docker-down-clean - Stop containers and remove volumes"
+	@echo "  make docker-clean-all  - Stop containers and remove ALL data"
 	@echo "  make docker-logs       - View application logs"
 	@echo "  make docker-shell      - Open shell in app container"
 	@echo "  make docker-db-shell   - Open PostgreSQL shell"

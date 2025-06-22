@@ -20,13 +20,14 @@ services:
     ports:
       - "8080:5000"
     environment:
-      - FLASK_ENV=development
+      - FLASK_ENV=production
       - DATABASE_URL=postgresql://financeuser:financepass@db:5432/personal_finance
-      - SECRET_KEY=your-secret-key-for-development
+      - SECRET_KEY=your-secret-key-for-production-change-this
       - POSTGRES_HOST=db
       - POSTGRES_USER=financeuser
       - POSTGRES_PASSWORD=financepass
       - POSTGRES_DB=personal_finance
+      - DB_ENCRYPTION_KEY=zmJgYyCDjrG1UFNyxqGx5ar0xzIJFTdT20FcQ12M-qE=
     depends_on:
       db:
         condition: service_healthy

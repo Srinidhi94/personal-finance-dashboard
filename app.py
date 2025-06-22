@@ -285,6 +285,25 @@ def register_routes(app):
                 if field not in data:
                     return jsonify({"error": f"Missing required field: {field}"}), 400
 
+            # Handle bank + account_type combination
+            if "bank" in data and "account_type" in data:
+                # Create account name from bank and account_type
+                account_name = f"{data['bank']} {data['account_type']}"
+                
+                # Get or create the account
+                account = AccountService.get_or_create_account(
+                    name=account_name,
+                    account_type=data["account_type"],
+                    bank=data["bank"]
+                )
+                
+                # Add account_id to the data
+                data["account_id"] = account.id
+                
+                # Remove bank and account_type from data as they're not needed for TransactionService
+                data.pop("bank", None)
+                data.pop("account_type", None)
+
             # Create transaction using service
             transaction = TransactionService.create_transaction(data)
             return jsonify(transaction.to_dict()), 201
@@ -1097,3 +1116,6 @@ def register_routes(app):
 if __name__ == "__main__":
     app = create_app()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+
+# Create app instance for gunicorn
+app = create_app()
