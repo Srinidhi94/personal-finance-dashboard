@@ -1,6 +1,6 @@
 """
-Universal LLM Parser for bank statements with fallback to existing parsers.
-Provides intelligent parsing using LLM with automatic categorization and robust fallback mechanisms.
+Universal LLM Parser for bank statements with robust error handling.
+Provides intelligent parsing using LLM with proper error management.
 """
 
 import logging
@@ -11,14 +11,19 @@ import sys
 import os
 
 # Add project root to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+except NameError:
+    # Handle case when __file__ is not defined (e.g., when exec'd)
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath('.'))))
 
 from llm_services.llm_service import LLMService, LLMServiceError
+from .exceptions import PDFParsingError
 
 
 class UniversalLLMParser:
     """
-    Universal parser that uses LLM for intelligent bank statement parsing with fallback support.
+    Universal parser that uses LLM for intelligent bank statement parsing.
     """
     
     def __init__(self, enable_llm: bool = True):
@@ -31,17 +36,21 @@ class UniversalLLMParser:
         self.enable_llm = enable_llm
         self.logger = logging.getLogger(__name__)
         
-        # Initialize LLM service if enabled
+        # Initialize LLM service
         self.llm_service = None
+        
         if self.enable_llm:
             try:
                 self.llm_service = LLMService()
                 self.logger.info("LLM service initialized successfully")
             except Exception as e:
-                self.logger.warning(f"Failed to initialize LLM service: {e}")
-                self.enable_llm = False
+                self.logger.error(f"Failed to initialize LLM service: {e}")
+                raise PDFParsingError(
+                    f"LLM service is not available. Please ensure Ollama is running and accessible. Error: {e}",
+                    "llm_service_unavailable"
+                )
         
-        # Bank parser mapping for fallback
+        # Bank parser mapping for reference
         self.parser_mapping = {
             'federal bank': 'federal_bank_parser',
             'hdfc bank': 'hdfc_savings',
@@ -51,7 +60,7 @@ class UniversalLLMParser:
     
     def parse_statement(self, pdf_text: str, bank_name: str) -> List[Dict]:
         """
-        Parse bank statement using LLM with fallback to existing parsers.
+        Parse bank statement using LLM with proper error handling.
         
         Args:
             pdf_text: Raw text extracted from PDF
@@ -61,63 +70,88 @@ class UniversalLLMParser:
             List of transaction dictionaries with enhanced categorization
             
         Raises:
-            Exception: If both LLM and fallback parsing fail
+            PDFParsingError: If parsing fails with specific error types
         """
         bank_name_lower = bank_name.lower().strip()
         start_time = datetime.now()
         
-        self.logger.info(f"Starting statement parsing for {bank_name} at {start_time}")
+        self.logger.info(f"Starting LLM statement parsing for {bank_name} at {start_time}")
         
-        # Try LLM parsing first if enabled
-        if self.enable_llm and self.llm_service:
-            try:
-                self.logger.info(f"Attempting LLM parsing for {bank_name}")
-                transactions = self._parse_with_llm(pdf_text, bank_name)
-                
-                if transactions:
-                    # Add automatic categorization
-                    transactions = self._add_llm_categorization(transactions)
-                    
-                    # Validate and log success
-                    validated_transactions = self._validate_transactions(transactions)
-                    end_time = datetime.now()
-                    duration = (end_time - start_time).total_seconds()
-                    
-                    self.logger.info(f"✅ LLM parsing successful for {bank_name}: "
-                                   f"{len(validated_transactions)} transactions in {duration:.2f}s")
-                    
-                    return validated_transactions
-                    
-            except Exception as e:
-                self.logger.warning(f"LLM parsing failed for {bank_name}: {e}")
+        if not self.enable_llm or not self.llm_service:
+            raise PDFParsingError(
+                "LLM parsing is disabled or service unavailable",
+                "llm_service_disabled"
+            )
         
-        # Fallback to existing parsers
-        self.logger.info(f"Falling back to traditional parser for {bank_name}")
+        # Validate PDF text
+        if not pdf_text or len(pdf_text.strip()) < 50:
+            raise PDFParsingError(
+                "PDF text is too short or empty. The PDF may be corrupted or contain no readable text.",
+                "invalid_pdf_content"
+            )
+        
         try:
-            transactions = self._parse_with_fallback(pdf_text, bank_name_lower)
+            self.logger.info(f"Processing {len(pdf_text)} characters with LLM for {bank_name}")
+            transactions = self._parse_with_llm(pdf_text, bank_name)
             
-            # Add LLM categorization to fallback results if available
-            if self.enable_llm and self.llm_service and transactions:
-                try:
-                    transactions = self._add_llm_categorization(transactions)
-                    self.logger.info(f"Added LLM categorization to fallback results")
-                except Exception as e:
-                    self.logger.warning(f"Failed to add LLM categorization to fallback: {e}")
+            if not transactions:
+                raise PDFParsingError(
+                    f"No transactions could be extracted from the {bank_name} statement. The PDF may not contain transaction data or may be in an unsupported format.",
+                    "no_transactions_found"
+                )
             
+            # Add automatic categorization
+            try:
+                transactions = self._add_llm_categorization(transactions)
+                self.logger.info(f"Added LLM categorization to {len(transactions)} transactions")
+            except Exception as e:
+                self.logger.warning(f"Failed to add LLM categorization: {e}")
+                # Continue without categorization rather than failing completely
+                for txn in transactions:
+                    if 'category' not in txn:
+                        txn['category'] = 'Other'
+            
+            # Validate and log success
+            validated_transactions = self._validate_transactions(transactions)
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
             
-            self.logger.info(f"✅ Fallback parsing successful for {bank_name}: "
-                           f"{len(transactions)} transactions in {duration:.2f}s")
+            self.logger.info(f"✅ LLM parsing successful for {bank_name}: "
+                           f"{len(validated_transactions)} transactions in {duration:.2f}s")
             
-            return transactions
+            return validated_transactions
+                
+        except LLMServiceError as e:
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            
+            self.logger.error(f"❌ LLM parsing failed for {bank_name} after {duration:.2f}s: {e}")
+            
+            # Determine specific error type based on the LLM error
+            if "invalid JSON" in str(e).lower():
+                error_type = "json_parsing_error"
+                message = f"The LLM service returned malformed data for the {bank_name} statement. This may indicate the PDF format is not supported or the content is unclear."
+            elif "timeout" in str(e).lower():
+                error_type = "llm_timeout"
+                message = f"LLM processing timed out for the {bank_name} statement. The PDF may be too large or complex to process."
+            elif "connection" in str(e).lower():
+                error_type = "llm_connection_error"
+                message = f"Cannot connect to the LLM service. Please ensure Ollama is running and accessible."
+            else:
+                error_type = "llm_processing_error"
+                message = f"Failed to process the {bank_name} statement with LLM: {str(e)}"
+            
+            raise PDFParsingError(message, error_type)
             
         except Exception as e:
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
             
-            self.logger.error(f"❌ All parsing methods failed for {bank_name} after {duration:.2f}s: {e}")
-            raise Exception(f"Failed to parse {bank_name} statement: {e}")
+            self.logger.error(f"❌ Unexpected error during parsing for {bank_name} after {duration:.2f}s: {e}")
+            raise PDFParsingError(
+                f"An unexpected error occurred while processing the {bank_name} statement: {str(e)}",
+                "unexpected_error"
+            )
     
     def _parse_with_llm(self, pdf_text: str, bank_name: str) -> List[Dict]:
         """
@@ -136,12 +170,15 @@ class UniversalLLMParser:
         if not self.llm_service:
             raise LLMServiceError("LLM service not available")
         
+        self.logger.info(f"Using LLM service to parse {len(pdf_text)} characters")
+        
         # Use LLM service to parse the statement
         transactions = self.llm_service.parse_bank_statement(pdf_text, bank_name)
         
         if not transactions:
             raise LLMServiceError("LLM returned empty transaction list")
         
+        self.logger.info(f"LLM extracted {len(transactions)} transactions")
         return transactions
     
     def _add_llm_categorization(self, transactions: List[Dict]) -> List[Dict]:
@@ -183,251 +220,103 @@ class UniversalLLMParser:
         
         return categorized_transactions
     
-    def _parse_with_fallback(self, pdf_text: str, bank_name_lower: str) -> List[Dict]:
-        """
-        Parse statement using existing traditional parsers.
-        
-        Args:
-            pdf_text: Raw PDF text
-            bank_name_lower: Lowercase bank name
-            
-        Returns:
-            List of transaction dictionaries
-            
-        Raises:
-            Exception: If no suitable parser found or parsing fails
-        """
-        # For now, we'll simulate traditional parser results since they expect file paths
-        # In a real implementation, you would need to either:
-        # 1. Create temporary PDF files from the text
-        # 2. Modify traditional parsers to accept text input
-        # 3. Use a different approach
-        
-        self.logger.info(f"Simulating fallback parsing for {bank_name_lower}")
-        
-        # Simulate parsing results based on bank type
-        simulated_transactions = []
-        
-        if 'federal' in bank_name_lower:
-            # Simulate Federal Bank parsing
-            simulated_transactions = self._simulate_federal_bank_parsing(pdf_text)
-        elif 'hdfc' in bank_name_lower:
-            # Simulate HDFC parsing
-            simulated_transactions = self._simulate_hdfc_parsing(pdf_text)
-        else:
-            # Simulate generic parsing
-            simulated_transactions = self._simulate_generic_parsing(pdf_text)
-        
-        if not simulated_transactions:
-            raise Exception(f"No transactions found in fallback parsing for {bank_name_lower}")
-        
-        return simulated_transactions
-    
-    def _simulate_federal_bank_parsing(self, pdf_text: str) -> List[Dict]:
-        """Simulate Federal Bank parsing from text."""
-        transactions = []
-        
-        # Simple pattern matching for demonstration
-        lines = pdf_text.split('\n')
-        current_date = None
-        
-        for line in lines:
-            line = line.strip()
-            
-            # Look for date patterns (e.g., "01 May")
-            if any(month in line for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
-                # Extract date
-                parts = line.split()
-                if len(parts) >= 2:
-                    try:
-                        day = parts[0]
-                        month = parts[1]
-                        current_date = f"{day}/{month}/2024"  # Assume current year
-                    except:
-                        pass
-            
-            # Look for transaction patterns
-            elif current_date and ('UPI' in line or 'ATM' in line or 'POS' in line or 'NEFT' in line):
-                # This is likely a transaction description
-                description = line
-                
-                # Look for amount in next lines (simplified)
-                amount = 1000.0  # Placeholder
-                transaction_type = 'debit' if any(word in line.upper() for word in ['DEBIT', 'ATM', 'POS']) else 'credit'
-                
-                transaction = {
-                    'date': current_date,
-                    'description': description,
-                    'amount': amount if transaction_type == 'credit' else -amount,
-                    'type': transaction_type,
-                    'category': 'Other',
-                    'categorization_method': 'fallback'
-                }
-                transactions.append(transaction)
-        
-        return transactions
-    
-    def _simulate_hdfc_parsing(self, pdf_text: str) -> List[Dict]:
-        """Simulate HDFC parsing from text."""
-        transactions = []
-        
-        # Simple simulation for HDFC format
-        if 'SALARY' in pdf_text.upper():
-            transactions.append({
-                'date': '01/05/2024',
-                'description': 'SALARY CREDIT',
-                'amount': 50000.0,
-                'type': 'credit',
-                'category': 'Other',
-                'categorization_method': 'fallback'
-            })
-        
-        if 'ATM' in pdf_text.upper():
-            transactions.append({
-                'date': '02/05/2024',
-                'description': 'ATM WITHDRAWAL',
-                'amount': -2000.0,
-                'type': 'debit',
-                'category': 'Other',
-                'categorization_method': 'fallback'
-            })
-        
-        return transactions
-    
-    def _simulate_generic_parsing(self, pdf_text: str) -> List[Dict]:
-        """Simulate generic parsing from text."""
-        transactions = []
-        
-        # Very basic simulation
-        if pdf_text.strip():
-            transactions.append({
-                'date': '01/05/2024',
-                'description': 'GENERIC TRANSACTION',
-                'amount': -1000.0,
-                'type': 'debit',
-                'category': 'Other',
-                'categorization_method': 'fallback'
-            })
-        
-        return transactions
-    
     def _validate_transactions(self, transactions: List[Dict]) -> List[Dict]:
         """
-        Validate transaction format and data integrity.
+        Validate and clean transaction data.
         
         Args:
             transactions: List of transaction dictionaries
             
         Returns:
-            Validated and cleaned transaction list
+            Validated and cleaned transactions
             
         Raises:
-            ValueError: If validation fails
+            PDFParsingError: If validation fails
         """
         if not transactions:
-            raise ValueError("Empty transaction list")
+            raise PDFParsingError("No transactions to validate", "no_transactions")
         
         validated_transactions = []
-        required_fields = ['date', 'description', 'amount', 'type']
+        required_fields = ['date', 'description', 'amount']
         
         for i, transaction in enumerate(transactions):
             try:
                 # Check required fields
                 for field in required_fields:
-                    if field not in transaction:
-                        raise ValueError(f"Missing required field '{field}' in transaction {i}")
+                    if field not in transaction or transaction[field] is None:
+                        raise ValueError(f"Missing required field: {field}")
                 
                 # Validate and clean data
-                validated_transaction = {
-                    'date': str(transaction['date']).strip(),
+                cleaned_transaction = {
+                    'date': self._validate_date(transaction['date']),
                     'description': str(transaction['description']).strip(),
-                    'amount': float(transaction['amount']),
-                    'type': str(transaction['type']).lower().strip(),
+                    'amount': self._validate_amount(transaction['amount']),
                     'category': transaction.get('category', 'Other'),
-                    'categorization_method': transaction.get('categorization_method', 'unknown')
+                    'type': transaction.get('type', 'debit' if float(transaction['amount']) < 0 else 'credit'),
+                    'categorization_method': transaction.get('categorization_method', 'llm')
                 }
                 
-                # Validate transaction type
-                if validated_transaction['type'] not in ['credit', 'debit']:
-                    self.logger.warning(f"Invalid transaction type '{validated_transaction['type']}', defaulting to 'debit'")
-                    validated_transaction['type'] = 'debit'
+                validated_transactions.append(cleaned_transaction)
                 
-                # Validate amount
-                if validated_transaction['amount'] < 0:
-                    self.logger.warning(f"Negative amount {validated_transaction['amount']}, converting to positive")
-                    validated_transaction['amount'] = abs(validated_transaction['amount'])
-                
-                validated_transactions.append(validated_transaction)
-                
-            except (ValueError, TypeError) as e:
-                self.logger.warning(f"Skipping invalid transaction {i}: {e}")
+            except Exception as e:
+                self.logger.warning(f"Skipping invalid transaction {i+1}: {e}")
+                # Continue processing other transactions rather than failing completely
                 continue
         
         if not validated_transactions:
-            raise ValueError("No valid transactions found after validation")
+            raise PDFParsingError(
+                "All extracted transactions failed validation. The PDF may contain invalid or unrecognizable transaction data.",
+                "validation_failed"
+            )
         
-        self.logger.info(f"Validated {len(validated_transactions)} transactions")
+        self.logger.info(f"Validated {len(validated_transactions)} out of {len(transactions)} transactions")
         return validated_transactions
     
-    def _get_fallback_parser(self, bank_name: str, account_type: str = "savings") -> tuple:
-        """
-        Get the appropriate fallback parser module and function for a bank.
+    def _validate_date(self, date_str: str) -> str:
+        """Validate and normalize date string"""
+        if not date_str:
+            raise ValueError("Date is empty")
         
-        Args:
-            bank_name: Name of the bank
-            account_type: Type of account (savings, credit_card, etc.)
-            
-        Returns:
-            Tuple of (module_name, function_name)
-        """
-        bank_name_lower = bank_name.lower().strip()
-        
-        if 'federal' in bank_name_lower:
-            return ('federal_bank_parser', 'extract_federal_bank_savings')
-        elif 'hdfc' in bank_name_lower:
-            if 'credit' in bank_name_lower or account_type.lower() == 'credit_card':
-                return ('hdfc_credit_card', 'extract_hdfc_credit_card')
-            else:
-                return ('hdfc_savings', 'extract_hdfc_savings')
-        else:
-            return ('generic', 'extract_generic_transactions')
-    
-    def _categorize_with_llm(self, description: str) -> str:
-        """
-        Categorize a transaction using LLM.
-        
-        Args:
-            description: Transaction description
-            
-        Returns:
-            Category string
-        """
-        if not self.llm_service:
-            return "Other"
-        
+        # Try to parse the date to ensure it's valid
         try:
-            return self.llm_service.categorize_transaction(description)
+            # Common date formats
+            for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y']:
+                try:
+                    parsed_date = datetime.strptime(str(date_str), fmt)
+                    return parsed_date.strftime('%Y-%m-%d')
+                except ValueError:
+                    continue
+            
+            raise ValueError(f"Unrecognized date format: {date_str}")
+            
         except Exception as e:
-            self.logger.warning(f"LLM categorization failed for '{description}': {e}")
-            return "Other"
+            raise ValueError(f"Invalid date: {date_str} - {e}")
+    
+    def _validate_amount(self, amount) -> float:
+        """Validate and normalize amount"""
+        try:
+            amount_float = float(amount)
+            if abs(amount_float) > 10000000:  # 10 million limit
+                raise ValueError(f"Amount too large: {amount_float}")
+            return amount_float
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid amount: {amount} - {e}")
 
 
-# Factory function for backward compatibility
 def parse_bank_statement(pdf_text: str, bank_name: str, enable_llm: bool = True) -> List[Dict]:
     """
-    Factory function to parse bank statements with LLM and fallback support.
+    Convenience function to parse bank statement using Universal LLM Parser.
     
     Args:
         pdf_text: Raw text extracted from PDF
         bank_name: Name of the bank
-        enable_llm: Whether to enable LLM parsing (default: True)
+        enable_llm: Whether to enable LLM parsing
         
     Returns:
         List of transaction dictionaries
         
     Raises:
-        Exception: If parsing fails
+        PDFParsingError: If parsing fails
     """
     parser = UniversalLLMParser(enable_llm=enable_llm)
     return parser.parse_statement(pdf_text, bank_name)

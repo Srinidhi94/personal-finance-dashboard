@@ -3,12 +3,21 @@ from datetime import datetime
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_migrate import Migrate
+from flask_cors import CORS, cross_origin
 from sqlalchemy import desc, func, or_
 from werkzeug.utils import secure_filename
 
 from config import config
 from models import Account, Category, Transaction, db
 from services import AccountService, TransactionService
+
+# Import background task manager
+from background_tasks import task_manager
+# Import monitoring routes
+from monitoring_routes import register_monitoring_routes
+
+# Import monitoring components
+from monitoring import init_monitoring, HealthChecker, MetricsCollector, StructuredLogger
 
 
 # Initialize Flask app
@@ -24,8 +33,20 @@ def create_app(config_name=None):
     # Initialize extensions
     db.init_app(app)
     Migrate(app, db)
+    
+    # Initialize monitoring components
+    init_monitoring(app)
+    # Initialize CORS
+    CORS(app, origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:8080"])
+
+    # Make config available to templates
+    @app.context_processor
+    def inject_config():
+        return dict(config=app.config)
 
     # Register routes
+    # Register monitoring routes
+    register_monitoring_routes(app)
     register_routes(app)
 
     # Create tables
@@ -208,6 +229,8 @@ def register_routes(app):
                 filters={},
             )
 
+
+
     @app.route("/review-upload")
     def review_upload():
         """Review/confirmation page for uploaded transactions"""
@@ -253,6 +276,18 @@ def register_routes(app):
             print(f"Error loading review page: {e}")
             flash("Error loading review page", "error")
             return redirect(url_for("index"))
+
+    @app.route("/api/pending-transactions", methods=["GET"])
+    def api_get_pending_transactions():
+        """API endpoint to get pending transactions from session"""
+        try:
+            pending_transactions = session.get("pending_transactions", [])
+            return jsonify({
+                "transactions": pending_transactions,
+                "count": len(pending_transactions)
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     @app.route("/api/transactions", methods=["GET"])
     def api_get_transactions():
@@ -627,30 +662,27 @@ def register_routes(app):
             return []
 
     def extract_transactions_from_file_new(filepath, bank, account_type, account_name):
-        """Extract transactions from uploaded file for review flow"""
+        """Extract transactions from uploaded file for review flow using Universal LLM Parser"""
         try:
             if filepath.endswith(".pdf"):
-                # Use appropriate parser
-                if bank.lower() == "federal bank":
-                    from parsers.federal_bank_parser import extract_federal_bank_savings
-
-                    transactions = extract_federal_bank_savings(filepath)
-                elif bank.lower() == "hdfc":
-                    if account_type.lower() == "credit card":
-                        from parsers.hdfc_credit_card import HDFCCreditCardParser
-
-                        parser = HDFCCreditCardParser()
-                        transactions = parser.parse(filepath)
-                    else:
-                        from parsers.hdfc_savings import HDFCSavingsParser
-
-                        parser = HDFCSavingsParser()
-                        transactions = parser.parse(filepath)
-                else:
-                    from parsers.generic import GenericParser
-
-                    parser = GenericParser()
-                    transactions = parser.parse(filepath)
+                # Use Universal LLM Parser for all PDF files
+                from parsers.universal_llm_parser import UniversalLLMParser
+                from parsers.exceptions import PDFParsingError
+                
+                # Extract text from PDF
+                import fitz  # PyMuPDF
+                doc = fitz.open(filepath)
+                pdf_text = ""
+                for page in doc:
+                    pdf_text += page.get_text()
+                doc.close()
+                
+                if not pdf_text or len(pdf_text.strip()) < 100:
+                    raise PDFParsingError("Failed to extract meaningful text from PDF", "pdf_extraction_failed")
+                
+                # Use Universal LLM Parser
+                parser = UniversalLLMParser(enable_llm=True)
+                transactions = parser.parse_statement(pdf_text, bank)
 
                 # Transform to our format
                 formatted_transactions = []
@@ -663,7 +695,7 @@ def register_routes(app):
                         "bank": bank,
                         "account_type": account_type,
                         "account_name": account_name,
-                        "category": "Paycheck" if amount > 0 else "Other",
+                        "category": trans.get("category", "Other"),
                         "subcategory": "",
                         "notes": "",
                     }
@@ -674,9 +706,12 @@ def register_routes(app):
                 # Handle CSV/Excel files
                 return []
 
+        except PDFParsingError:
+            # Re-raise PDFParsingError to preserve error handling
+            raise
         except Exception as e:
             print(f"Error parsing file: {e}")
-            return []
+            raise PDFParsingError(f"Unexpected error parsing file: {str(e)}", "unexpected_error")
 
     @app.route("/upload", methods=["POST"])
     def upload_file():
@@ -703,26 +738,70 @@ def register_routes(app):
             file.save(upload_path)
 
             # Extract transactions
-            transactions = extract_transactions_from_file_new(upload_path, bank, account_type, account_name)
+            try:
+                transactions = extract_transactions_from_file_new(upload_path, bank, account_type, account_name)
 
-            if not transactions:
-                return jsonify({"error": "Could not extract transactions from file"}), 400
+                if not transactions:
+                    return jsonify({
+                        "error": "Could not extract transactions from file",
+                        "error_type": "no_transactions_found",
+                        "user_message": f"No transactions could be found in the {bank} statement. Please verify the PDF contains transaction data."
+                    }), 400
 
-            # Store transactions in session for review
-            session["pending_transactions"] = transactions
+                # Store transactions in session for review
+                session["pending_transactions"] = transactions
 
-            # Return success with redirect URL
-            return jsonify(
-                {
-                    "success": True,
-                    "message": f"Extracted {len(transactions)} transactions",
-                    "transaction_count": len(transactions),
-                    "redirect_url": url_for("review_upload"),
-                }
-            )
+                # Return success with redirect URL
+                return jsonify(
+                    {
+                        "success": True,
+                        "message": f"Extracted {len(transactions)} transactions",
+                        "transaction_count": len(transactions),
+                        "redirect_url": url_for("review_upload"),
+                    }
+                )
+
+            except Exception as pe:
+                # Import here to avoid circular imports
+                from parsers.exceptions import PDFParsingError
+                
+                if isinstance(pe, PDFParsingError):
+                    # Map error types to user-friendly messages
+                    error_messages = {
+                        'llm_service_unavailable': 'The AI service is currently unavailable. Please ensure the LLM service is running and try again.',
+                        'llm_service_disabled': 'AI parsing is currently disabled. Please contact support.',
+                        'invalid_pdf_content': 'The PDF file appears to be empty or corrupted. Please upload a valid bank statement.',
+                        'no_transactions_found': f'No transactions could be found in the {bank} statement. Please verify the PDF contains transaction data.',
+                        'json_parsing_error': f'The AI service had trouble understanding the {bank} statement format. This PDF format may not be supported.',
+                        'llm_timeout': f'Processing the {bank} statement took too long. The PDF may be too large or complex.',
+                        'llm_connection_error': 'Cannot connect to the AI service. Please check your connection and try again.',
+                        'llm_processing_error': f'An error occurred while processing the {bank} statement with AI.',
+                        'validation_failed': 'The extracted transaction data failed validation. The PDF may contain invalid data.',
+                        'pdf_extraction_failed': 'Could not extract readable text from the PDF. The file may be corrupted or password-protected.',
+                        'unexpected_error': 'An unexpected error occurred while processing the PDF.'
+                    }
+                    
+                    user_message = error_messages.get(pe.error_type, pe.message)
+                    
+                    return jsonify({
+                        "error": pe.message,
+                        "error_type": pe.error_type,
+                        "user_message": user_message
+                    }), 422  # Unprocessable Entity
+                else:
+                    # Handle other exceptions
+                    return jsonify({
+                        "error": str(pe),
+                        "error_type": "unexpected_error",
+                        "user_message": "An unexpected error occurred while processing your PDF. Please try again."
+                    }), 500
 
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({
+                "error": str(e),
+                "error_type": "server_error",
+                "user_message": "A server error occurred. Please try again later."
+            }), 500
 
     @app.route("/api/upload/confirm", methods=["POST"])
     def confirm_upload():
@@ -794,25 +873,221 @@ def register_routes(app):
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/health")
-    def health_check():
-        """Health check endpoint"""
+    # Phase 3: New File Upload Routes with Async Processing
+    @app.route("/api/upload-statement", methods=["POST"])
+    @cross_origin()
+    def api_upload_statement():
+        """Phase 3: Upload statement file with async processing"""
         try:
-            # Check database connection
-            transaction_count = Transaction.query.count()
-            account_count = Account.query.count()
-
-            return jsonify(
-                {
-                    "status": "healthy",
-                    "database": "connected",
-                    "transactions": transaction_count,
-                    "accounts": account_count,
-                    "timestamp": datetime.utcnow().isoformat(),
-                }
+            # Validate file upload
+            if "file" not in request.files:
+                return jsonify({"error": "No file provided"}), 400
+            
+            file = request.files["file"]
+            if file.filename == "":
+                return jsonify({"error": "No file selected"}), 400
+            
+            # Get form data
+            bank_type = request.form.get("bank_type")
+            account_id = request.form.get("account_id")
+            
+            if not bank_type:
+                return jsonify({"error": "Bank type is required"}), 400
+            
+            if not account_id:
+                return jsonify({"error": "Account ID is required"}), 400
+            
+            # Validate file type
+            if not allowed_file(file.filename):
+                return jsonify({
+                    "error": "Invalid file type. Supported formats: PDF, CSV, Excel"
+                }), 400
+            
+            # Check file size
+            file.seek(0, 2)  # Seek to end
+            file_size = file.tell()
+            file.seek(0)  # Reset to beginning
+            
+            max_size = app.config.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)
+            if file_size > max_size:
+                return jsonify({
+                    "error": f"File too large. Maximum size: {max_size // (1024*1024)}MB"
+                }), 400
+            
+            # Get user context (for now, use a default user_id)
+            # In production, extract from session/JWT token
+            user_id = session.get("user_id", "default_user")
+            
+            # Save file temporarily
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_filename = f"{timestamp}_{filename}"
+            
+            upload_path = os.path.join(app.config.get("UPLOAD_FOLDER", "uploads"), safe_filename)
+            os.makedirs(os.path.dirname(upload_path), exist_ok=True)
+            file.save(upload_path)
+            
+            # Start background processing
+            trace_id = task_manager.start_file_processing(
+                file_path=upload_path,
+                filename=filename,
+                user_id=user_id,
+                account_id=account_id,
+                bank_type=bank_type
             )
+            
+            return jsonify({
+                "success": True,
+                "trace_id": trace_id,
+                "message": "File uploaded successfully. Processing started.",
+                "filename": filename,
+                "file_size": file_size,
+                "status_url": f"/api/upload-status/{trace_id}",
+                "results_url": f"/api/upload-results/{trace_id}"
+            }), 202
+            
         except Exception as e:
-            return jsonify({"status": "unhealthy", "error": str(e), "timestamp": datetime.utcnow().isoformat()}), 500
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/upload-status/<trace_id>", methods=["GET"])
+    @cross_origin()
+    def api_upload_status(trace_id):
+        """Get upload processing status by trace ID"""
+        try:
+            # Get user context
+            user_id = session.get("user_id", "default_user")
+            
+            # Get task status
+            task_status = task_manager.get_task_status(trace_id)
+            
+            if not task_status:
+                return jsonify({"error": "Task not found"}), 404
+            
+            # Basic authorization check
+            if task_status.get("user_id") != user_id:
+                return jsonify({"error": "Unauthorized"}), 403
+            
+            # Return status information
+            response_data = {
+                "trace_id": trace_id,
+                "status": task_status["status"],
+                "progress": task_status["progress"],
+                "message": task_status["message"],
+                "created_at": task_status["created_at"],
+                "updated_at": task_status["updated_at"],
+                "filename": task_status["filename"]
+            }
+            
+            # Include error details if present
+            if task_status.get("error"):
+                response_data["error"] = task_status["error"]
+            
+            # Include completion info if done
+            if task_status["status"] == "completed":
+                response_data["transaction_count"] = len(task_status.get("transactions", []))
+                response_data["results_url"] = f"/api/upload-results/{trace_id}"
+            
+            return jsonify(response_data)
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/upload-results/<trace_id>", methods=["GET"])
+    @cross_origin()
+    def api_upload_results(trace_id):
+        """Get extracted transactions for review"""
+        try:
+            # Get user context
+            user_id = session.get("user_id", "default_user")
+            
+            # Get task results
+            results = task_manager.get_task_results(trace_id)
+            
+            if not results:
+                task_status = task_manager.get_task_status(trace_id)
+                if not task_status:
+                    return jsonify({"error": "Task not found"}), 404
+                elif task_status["status"] != "completed":
+                    return jsonify({
+                        "error": "Processing not completed yet",
+                        "status": task_status["status"],
+                        "progress": task_status["progress"]
+                    }), 202
+                else:
+                    return jsonify({"error": "Results not available"}), 404
+            
+            # Basic authorization check
+            task_status = task_manager.get_task_status(trace_id)
+            if task_status and task_status.get("user_id") != user_id:
+                return jsonify({"error": "Unauthorized"}), 403
+            
+            # Format response
+            response_data = {
+                "trace_id": trace_id,
+                "status": results["status"],
+                "filename": results["filename"],
+                "bank_type": results["bank_type"],
+                "account_id": results["account_id"],
+                "transactions": results["transactions"],
+                "metadata": results["metadata"],
+                "transaction_count": len(results["transactions"]),
+                "confirm_url": f"/api/confirm-transactions/{trace_id}"
+            }
+            
+            return jsonify(response_data)
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/confirm-transactions/<trace_id>", methods=["POST"])
+    @cross_origin()
+    def api_confirm_transactions(trace_id):
+        """Confirm and save extracted transactions"""
+        try:
+            # Get user context
+            user_id = session.get("user_id", "default_user")
+            
+            # Get request data
+            data = request.get_json() if request.is_json else {}
+            transaction_confirmations = data.get("transactions", None)
+            
+            # Confirm transactions
+            result = task_manager.confirm_transactions(
+                trace_id=trace_id,
+                user_id=user_id,
+                transaction_confirmations=transaction_confirmations
+            )
+            
+            return jsonify(result)
+            
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/cancel-upload/<trace_id>", methods=["POST"])
+    @cross_origin()
+    def api_cancel_upload(trace_id):
+        """Cancel a running upload task"""
+        try:
+            # Get user context
+            user_id = session.get("user_id", "default_user")
+            
+            # Cancel task
+            success = task_manager.cancel_task(trace_id, user_id)
+            
+            if not success:
+                return jsonify({"error": "Task not found or unauthorized"}), 404
+            
+            return jsonify({
+                "success": True,
+                "message": "Upload task cancelled successfully",
+                "trace_id": trace_id
+            })
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
 
     @app.route("/debug/db")
     def debug_db():
@@ -1109,13 +1384,13 @@ def register_routes(app):
         """Legacy confirm upload endpoint - redirects to new API endpoint"""
         if "pending_transactions" not in session:
             return redirect(url_for("transactions"))
-
-        return redirect(url_for("confirm_upload"))
+        
+        return redirect(url_for("review_upload"))
 
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
 
 # Create app instance for gunicorn
 app = create_app()

@@ -1,11 +1,19 @@
 import json
 import hashlib
+import uuid
 from datetime import datetime
+from enum import Enum
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, UniqueConstraint
+from sqlalchemy import func, UniqueConstraint, Enum as SQLEnum
 
 db = SQLAlchemy()
+
+
+# Enum for transaction source
+class TransactionSource(Enum):
+    MANUAL_ENTRY = 'manual_entry'
+    FILE_UPLOAD = 'file_upload'
 
 
 class Transaction(db.Model):
@@ -32,6 +40,11 @@ class Transaction(db.Model):
     encrypted_amount = db.Column(db.Text, nullable=True)  # Encrypted version of amount
     encryption_key_id = db.Column(db.String(50), nullable=True)  # ID of encryption key used
     is_encrypted = db.Column(db.Boolean, default=False)  # Flag to indicate if transaction is encrypted
+
+    # New fields for file upload tracking and audit purposes
+    trace_id = db.Column(db.String(100), nullable=True, index=True)  # For tracking file upload operations
+    source = db.Column(SQLEnum(TransactionSource), nullable=False, default=TransactionSource.MANUAL_ENTRY)  # Source of transaction
+    processing_metadata = db.Column(db.Text, nullable=True)  # JSON field for storing processing details
 
     # Relationship
     account = db.relationship("Account", backref=db.backref("transactions", lazy=True))
@@ -84,6 +97,24 @@ class Transaction(db.Model):
             all_tags.extend(tag_values)
         return all_tags
 
+    def get_processing_metadata(self):
+        """Get processing metadata as a dictionary"""
+        if self.processing_metadata:
+            try:
+                if isinstance(self.processing_metadata, str):
+                    return json.loads(self.processing_metadata)
+                elif isinstance(self.processing_metadata, dict):
+                    return self.processing_metadata
+                else:
+                    return {}
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+
+    def set_processing_metadata(self, metadata_dict):
+        """Set processing metadata from a dictionary"""
+        self.processing_metadata = json.dumps(metadata_dict) if metadata_dict else None
+
     def to_dict(self):
         tags_dict = self.get_tags()
         # Ensure tags_dict is always a proper dictionary
@@ -108,6 +139,9 @@ class Transaction(db.Model):
             "notes": self.notes,
             "transaction_type": self.transaction_type,
             "is_encrypted": self.is_encrypted,
+            "trace_id": self.trace_id,
+            "source": self.source.value if self.source else None,
+            "processing_metadata": self.get_processing_metadata(),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -222,48 +256,101 @@ class ChatSession(db.Model):
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
 
-    id = db.Column(db.Integer, primary_key=True)
-    action = db.Column(db.String(100), nullable=False, index=True)  # e.g., 'transaction_created', 'file_uploaded'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))  # UUID primary key
+    trace_id = db.Column(db.String(100), nullable=True, index=True)  # For tracking related operations
+    user_id = db.Column(db.String(36), nullable=True, index=True)  # UUID foreign key to users
+    action = db.Column(db.String(100), nullable=False, index=True)  # e.g., 'upload_start', 'extraction_complete'
+    entity_type = db.Column(db.String(50), nullable=True)  # e.g., 'transaction', 'account', 'file'
+    entity_id = db.Column(db.String(36), nullable=True)  # UUID of the affected entity
+    audit_metadata = db.Column(db.Text, nullable=True)  # JSON field for additional details
+    ip_address = db.Column(db.String(45), nullable=True)  # IPv4/IPv6 address
+    user_agent = db.Column(db.String(500), nullable=True)  # User agent string
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Legacy fields for backward compatibility
     user_id_hash = db.Column(db.String(64), nullable=True, index=True)  # Hashed user ID for privacy
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    details = db.Column(db.Text, nullable=True)  # JSON string with additional details
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)  # Alias for created_at
+    details = db.Column(db.Text, nullable=True)  # Alias for audit_metadata
     ip_address_hash = db.Column(db.String(64), nullable=True)  # Hashed IP address for privacy
     user_agent_hash = db.Column(db.String(64), nullable=True)  # Hashed user agent for privacy
-    resource_type = db.Column(db.String(50), nullable=True)  # e.g., 'transaction', 'account', 'file'
-    resource_id = db.Column(db.String(50), nullable=True)  # ID of the affected resource
+    resource_type = db.Column(db.String(50), nullable=True)  # Alias for entity_type
+    resource_id = db.Column(db.String(50), nullable=True)  # Alias for entity_id
     success = db.Column(db.Boolean, default=True)  # Whether the action was successful
     error_message = db.Column(db.Text, nullable=True)  # Error message if action failed
 
     @staticmethod
     def hash_sensitive_data(data):
-        """Hash sensitive data for privacy while maintaining auditability"""
+        """Hash sensitive data for privacy"""
         if not data:
             return None
         return hashlib.sha256(str(data).encode()).hexdigest()
 
     @classmethod
     def log_action(cls, action, user_id=None, details=None, ip_address=None, user_agent=None, 
-                   resource_type=None, resource_id=None, success=True, error_message=None):
-        """Convenience method to create audit log entries"""
-        audit_log = cls(
-            action=action,
-            user_id_hash=cls.hash_sensitive_data(user_id) if user_id else None,
-            details=json.dumps(details) if details else None,
-            ip_address_hash=cls.hash_sensitive_data(ip_address) if ip_address else None,
-            user_agent_hash=cls.hash_sensitive_data(user_agent) if user_agent else None,
-            resource_type=resource_type,
-            resource_id=str(resource_id) if resource_id else None,
-            success=success,
-            error_message=error_message
-        )
-        db.session.add(audit_log)
-        return audit_log
+                   resource_type=None, resource_id=None, success=True, error_message=None,
+                   trace_id=None, entity_type=None, entity_id=None, metadata=None):
+        """
+        Log an audit action with both new and legacy field support
+        
+        Args:
+            action: Action being performed
+            user_id: User ID (can be UUID string or integer)
+            details: Legacy details field (use metadata instead)
+            ip_address: IP address of the user
+            user_agent: User agent string
+            resource_type: Legacy resource type (use entity_type instead)
+            resource_id: Legacy resource ID (use entity_id instead)
+            success: Whether the action was successful
+            error_message: Error message if action failed
+            trace_id: Trace ID for tracking related operations
+            entity_type: Type of entity being acted upon
+            entity_id: ID of the entity being acted upon
+            metadata: JSON metadata (preferred over details)
+        """
+        try:
+            # Use new fields if provided, otherwise fall back to legacy fields
+            final_entity_type = entity_type or resource_type
+            final_entity_id = entity_id or resource_id
+            final_metadata = metadata or details
+            
+            audit_log = cls(
+                trace_id=trace_id,
+                user_id=str(user_id) if user_id else None,
+                action=action,
+                entity_type=final_entity_type,
+                entity_id=str(final_entity_id) if final_entity_id else None,
+                audit_metadata=json.dumps(final_metadata) if isinstance(final_metadata, dict) else final_metadata,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                success=success,
+                error_message=error_message,
+                # Legacy fields for backward compatibility
+                user_id_hash=cls.hash_sensitive_data(user_id) if user_id else None,
+                timestamp=datetime.utcnow(),
+                details=json.dumps(final_metadata) if isinstance(final_metadata, dict) else final_metadata,
+                ip_address_hash=cls.hash_sensitive_data(ip_address) if ip_address else None,
+                user_agent_hash=cls.hash_sensitive_data(user_agent) if user_agent else None,
+                resource_type=final_entity_type,
+                resource_id=str(final_entity_id) if final_entity_id else None
+            )
+            
+            db.session.add(audit_log)
+            return audit_log
+        except Exception as e:
+            print(f"Error logging audit action: {e}")
+            return None
 
-    def get_details(self):
-        """Get details as a dictionary"""
-        if self.details:
+    def get_metadata(self):
+        """Get metadata as a dictionary"""
+        metadata_field = self.audit_metadata or self.details
+        if metadata_field:
             try:
-                return json.loads(self.details)
+                if isinstance(metadata_field, str):
+                    return json.loads(metadata_field)
+                elif isinstance(metadata_field, dict):
+                    return metadata_field
+                else:
+                    return {}
             except (json.JSONDecodeError, TypeError):
                 return {}
         return {}
@@ -271,16 +358,20 @@ class AuditLog(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
+            "trace_id": self.trace_id,
+            "user_id": self.user_id,
             "action": self.action,
-            "user_id_hash": self.user_id_hash,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
-            "details": self.get_details(),
-            "ip_address_hash": self.ip_address_hash,
-            "user_agent_hash": self.user_agent_hash,
-            "resource_type": self.resource_type,
-            "resource_id": self.resource_id,
+            "entity_type": self.entity_type or self.resource_type,
+            "entity_id": self.entity_id or self.resource_id,
+            "metadata": self.get_metadata(),
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent,
             "success": self.success,
             "error_message": self.error_message,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            # Legacy fields
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "details": self.get_metadata(),  # Alias for metadata
         }
 
 

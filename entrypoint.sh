@@ -4,7 +4,7 @@ echo "Starting Personal Finance Dashboard..."
 
 # Wait for database to be ready
 echo "Waiting for database to be ready..."
-until pg_isready -h db -p 5432 -U ${POSTGRES_USER}; do
+until pg_isready -h db -p 5432 -U financeuser; do
   echo "Database is not ready yet. Waiting..."
   sleep 2
 done

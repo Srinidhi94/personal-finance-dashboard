@@ -1,7 +1,45 @@
 import os
+import sys
 from unittest.mock import MagicMock
 
 import pytest
+
+# Add the parent directory to the path so we can import our modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app import create_app
+from models.models import db
+
+
+@pytest.fixture(scope="session")
+def app():
+    """Create and configure a new app instance for each test session."""
+    # Set up test configuration
+    os.environ['DB_ENCRYPTION_KEY'] = 'test_encryption_key_32_characters_long'
+    os.environ['DATABASE_URL'] = 'sqlite:///test.db'
+    os.environ['TESTING'] = 'True'
+    os.environ['SECRET_KEY'] = 'test-secret-key'
+    os.environ['FLASK_ENV'] = 'testing'
+    
+    app = create_app()
+    app.config.update({
+        'TESTING': True,
+        'SQLALCHEMY_DATABASE_URI': 'sqlite:///test.db',
+        'WTF_CSRF_ENABLED': False,
+        'DB_ENCRYPTION_KEY': 'test_encryption_key_32_characters_long',
+        'SECRET_KEY': 'test-secret-key'
+    })
+    
+    with app.app_context():
+        db.create_all()
+        yield app
+        db.drop_all()
+
+
+@pytest.fixture
+def client(app):
+    """Create a test client for the app."""
+    return app.test_client()
 
 
 @pytest.fixture(scope="session")
