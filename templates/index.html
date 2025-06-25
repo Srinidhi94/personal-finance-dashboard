@@ -76,17 +76,17 @@
                         </thead>
                         <tbody>
                             {% if summary.account_summary %}
-                                {% for account in summary.account_summary %}
-                                <tr>
+                            {% for account in summary.account_summary %}
+                            <tr>
                                     <td>{{ account.bank }}</td>
                                     <td>{{ account.name.replace(account.bank, '').strip() }}</td>
-                                    <td class="text-success">₹{{ "{:,.2f}".format(account.income) }}</td>
-                                    <td class="text-danger">₹{{ "{:,.2f}".format(account.expenses) }}</td>
+                                <td class="text-success">₹{{ "{:,.2f}".format(account.income) }}</td>
+                                <td class="text-danger">₹{{ "{:,.2f}".format(account.expenses) }}</td>
                                     <td class="{% if account.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                        ₹{{ "{:,.2f}".format(account.balance) }}
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                                    ₹{{ "{:,.2f}".format(account.balance) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
                             {% else %}
                                 <tr>
                                     <td colspan="5" class="text-center text-muted py-4">
@@ -147,19 +147,19 @@
                         </thead>
                         <tbody>
                             {% if summary.category_summary %}
-                                {% for category in summary.category_summary[:5] %}
-                                <tr>
-                                    <td>{{ category.name }}</td>
-                                    <td>₹{{ "{:,.2f}".format(category.total) }}</td>
-                                    <td>
-                                        {% set percentage = (category.total / summary.total_expenses * 100) if summary.total_expenses > 0 else 0 %}
-                                        {{ "{:.1f}%".format(percentage) }}
-                                        <div class="progress mt-1" style="height: 4px;">
-                                            <div class="progress-bar" style="width: {{ percentage }}%"></div>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                            {% for category in summary.category_summary[:5] %}
+                            <tr>
+                                <td>{{ category.name }}</td>
+                                <td>₹{{ "{:,.2f}".format(category.total) }}</td>
+                                <td>
+                                    {% set percentage = (category.total / summary.total_expenses * 100) if summary.total_expenses > 0 else 0 %}
+                                    {{ "{:.1f}%".format(percentage) }}
+                                    <div class="progress mt-1" style="height: 4px;">
+                                        <div class="progress-bar" style="width: {{ percentage }}%"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
                             {% else %}
                                 <tr>
                                     <td colspan="3" class="text-center text-muted py-4">
@@ -244,21 +244,21 @@
                                             <span class="tag-chip">{{ category }}</span>
                                             <span class="tag-chip account-type">{{ account_type }}</span>
                                         </div>
-                                    </td>
-                                    <td>
+                                </td>
+                                <td>
                                         <span class="bank-text">{{ tx.bank or (tx.account.bank if tx.account else 'Unknown') }}</span>
-                                    </td>
+                                </td>
                                     <td>
                                         <span class="{% if tx.amount > 0 and not tx.is_debit %}amount-positive{% else %}amount-negative{% endif %}">
                                             {% if tx.amount > 0 and not tx.is_debit %}
                                                 +₹{{ "{:,.2f}".format(tx.amount) }}
-                                            {% else %}
-                                                -₹{{ "{:,.2f}".format(tx.amount|abs) }}
-                                            {% endif %}
+                                    {% else %}
+                                        -₹{{ "{:,.2f}".format(tx.amount|abs) }}
+                                    {% endif %}
                                         </span>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                                </td>
+                            </tr>
+                            {% endfor %}
                             {% else %}
                                 <tr>
                                     <td colspan="5" class="text-center text-muted py-4">
@@ -370,7 +370,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="uploadForm" enctype="multipart/form-data">
-                <div class="modal-body">
+            <div class="modal-body">
                     <div class="mb-3">
                         <label for="bank" class="form-label">Account</label>
                         <select class="form-select" id="bank" name="bank" required>
@@ -398,8 +398,8 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Upload & Review</button>
-                </div>
-            </form>
+                    </div>
+                </form>
         </div>
     </div>
 </div>
@@ -653,7 +653,7 @@
         const submitBtn = this.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
         
-        submitBtn.innerHTML = '<i class="bi bi-spinner-border spinner-border-sm"></i> Uploading...';
+        submitBtn.innerHTML = '<i class="bi bi-spinner-border spinner-border-sm"></i> Processing...';
         submitBtn.disabled = true;
         
         fetch('/upload', {
@@ -667,17 +667,57 @@
                 bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
                 window.location.href = data.redirect_url;
             } else {
-                alert('Error: ' + (data.error || 'Upload failed'));
+                // Show user-friendly error message
+                const errorMessage = data.user_message || data.error || 'Upload failed';
+                showErrorAlert(errorMessage, data.error_type || 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Upload failed: ' + error.message);
+            showErrorAlert('Network error occurred. Please check your connection and try again.', 'network_error');
         })
         .finally(() => {
             submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
         });
     });
+
+    // Function to show user-friendly error alerts
+    function showErrorAlert(message, errorType) {
+        // Create a more user-friendly alert with Bootstrap styling
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+        
+        // Add appropriate icon based on error type
+        let icon = 'bi-exclamation-triangle';
+        if (errorType === 'llm_service_unavailable' || errorType === 'llm_connection_error') {
+            icon = 'bi-wifi-off';
+        } else if (errorType === 'invalid_pdf_content' || errorType === 'pdf_extraction_failed') {
+            icon = 'bi-file-earmark-x';
+        } else if (errorType === 'no_transactions_found') {
+            icon = 'bi-search';
+        }
+        
+        alertDiv.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="bi ${icon} me-2"></i>
+                <div>
+                    <strong>Upload Failed</strong><br>
+                    <small>${message}</small>
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        document.body.appendChild(alertDiv);
+        
+        // Auto-remove after 10 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 10000);
+    }
 </script>
-{% endblock %} 
+{% endblock %}

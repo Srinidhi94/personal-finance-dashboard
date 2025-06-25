@@ -290,3 +290,37 @@ def extract_transactions(doc, statement_year):
     transactions.sort(key=lambda x: (x["date"], x.get("sort_key", (0, 0))))
 
     return transactions
+
+
+class HDFCSavingsParser:
+    """
+    HDFC Savings Account Parser class to match the expected interface
+    """
+    
+    def __init__(self):
+        self.bank_name = "HDFC Bank"
+        self.account_type = "Savings"
+    
+    def detect(self, pdf_path):
+        """
+        Detect if a PDF is an HDFC savings account statement
+        
+        Args:
+            pdf_path (str): Path to the PDF file
+            
+        Returns:
+            bool: True if it's an HDFC savings statement, False otherwise
+        """
+        return detect_hdfc_savings(pdf_path)
+    
+    def parse(self, pdf_path):
+        """
+        Parse HDFC Bank statements
+        
+        Args:
+            pdf_path (str): Path to the PDF statement file
+            
+        Returns:
+            list: List of transaction dictionaries with transaction details
+        """
+        return extract_hdfc_savings(pdf_path)

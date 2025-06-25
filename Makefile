@@ -1,257 +1,156 @@
 # Personal Finance Dashboard Makefile
-# 
-# This Makefile provides common operations for the personal finance app,
-# including Docker operations, database management, and testing.
+# Simplified version with essential Docker commands only
 
-.PHONY: run stop clean test install debug help
-.PHONY: docker-build docker-up docker-down docker-logs docker-shell docker-clean
-.PHONY: db-init db-migrate db-upgrade db-reset
-.PHONY: deploy-dev deploy-staging deploy-prod
-
-# Default port for the web server
-PORT ?= 5000
-# Database URL for development
-DATABASE_URL ?= sqlite:///personal_finance.db
-# Environment
-ENV ?= development
+.PHONY: help build up down logs shell test clean reset status
+.DEFAULT_GOAL := help
 
 # =============================================================================
-# Local Development Commands
+# Essential Commands
 # =============================================================================
 
-# Run the web server locally
-run:
-	@echo "Starting the personal finance dashboard server on port $(PORT)..."
-	FLASK_ENV=$(ENV) DATABASE_URL=$(DATABASE_URL) python app.py
+## Build all Docker containers
+build:
+	@echo "🔨 Building Docker containers..."
+	docker-compose build --no-cache
+	@echo "✅ Build complete"
 
-# Run the server in debug mode
-debug:
-	@echo "Starting the personal finance dashboard server in debug mode on port $(PORT)..."
-	FLASK_ENV=development FLASK_DEBUG=1 DATABASE_URL=$(DATABASE_URL) python app.py
+## Start the application stack
+up:
+	@echo "🚀 Starting application stack..."
+	docker-compose up -d
+	@echo "✅ Application started"
+	@echo "   - Database: http://localhost:5433"
+	@echo "   - Application: http://localhost:8080"
+	@echo "   - Health check: http://localhost:8080/health"
 
-# Stop the server (if running as a background process)
-stop:
-	@echo "Stopping the personal finance dashboard server..."
-	-pkill -f "python app.py" || true
-
-# Install dependencies
-install:
-	@echo "Installing dependencies..."
-	pip install -r requirements.txt
-
-# =============================================================================
-# Docker Commands
-# =============================================================================
-
-# Build Docker image
-docker-build:
-	@echo "Building Docker image..."
-	docker build -t personal-finance .
-
-# Start application with Docker Compose
-docker-up:
-	@echo "Starting application with Docker Compose..."
-	docker-compose up --build -d
-
-# Start application with Docker Compose (foreground)
-docker-up-logs:
-	@echo "Starting application with Docker Compose (with logs)..."
-	docker-compose up --build
-
-# Stop Docker containers
-docker-down:
-	@echo "Stopping Docker containers..."
+## Stop the application stack
+down:
+	@echo "🛑 Stopping application stack..."
 	docker-compose down
+	@echo "✅ Application stopped"
 
-# Stop Docker containers and remove volumes
-docker-down-clean:
-	@echo "Stopping Docker containers and removing volumes..."
-	docker-compose down -v
-
-# Stop Docker containers (alias for docker-down)
-docker-stop:
-	@echo "Stopping Docker containers (keeping data)..."
-	docker-compose down
-
-# Stop Docker containers and remove all data including volumes
-docker-clean-all:
-	@echo "Stopping Docker containers and removing all data..."
-	docker-compose down -v
-	docker volume prune -f
-	@echo "All data has been removed!"
-
-# View Docker logs
-docker-logs:
-	@echo "Showing Docker logs..."
+## View application logs
+logs:
+	@echo "📋 Showing application logs..."
 	docker-compose logs -f
 
-# Get a shell inside the app container
-docker-shell:
-	@echo "Opening shell in app container..."
+## Access application container shell
+shell:
+	@echo "🐚 Opening shell in application container..."
 	docker-compose exec app /bin/bash
 
-# Get a shell inside the database container
-docker-db-shell:
-	@echo "Opening shell in database container..."
-	docker-compose exec db psql -U financeuser -d personal_finance
+## Run the complete test suite
+test:
+	@echo "🧪 Running test suite..."
+	docker-compose exec app python -m pytest tests/ -v
+	@echo "✅ Tests complete"
 
-# Clean up Docker containers, images, and volumes
-docker-clean:
-	@echo "Cleaning up Docker resources..."
+## Clean up containers and volumes
+clean:
+	@echo "🧹 Cleaning up containers and volumes..."
 	docker-compose down -v
 	docker system prune -f
+	@echo "✅ Cleanup complete"
 
-# Restart Docker containers
-docker-restart: docker-down docker-up
-
-# =============================================================================
-# Database Commands
-# =============================================================================
-
-# Initialize database migrations
-db-init:
-	@echo "Initializing database migrations..."
-	FLASK_APP=app.py flask db init
-
-# Create a new migration
-db-migrate:
-	@echo "Creating new database migration..."
-	FLASK_APP=app.py flask db migrate -m "$(MESSAGE)"
-
-# Apply database migrations
-db-upgrade:
-	@echo "Applying database migrations..."
-	FLASK_APP=app.py flask db upgrade
-
-# Reset database (for development only)
-db-reset:
-	@echo "Resetting database..."
-	@read -p "This will delete all data. Are you sure? (y/N) " confirm && \
-	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
-		rm -f personal_finance.db; \
-		FLASK_APP=app.py flask db upgrade; \
-		echo "Database reset complete."; \
-	else \
-		echo "Database reset cancelled."; \
-	fi
-
-# =============================================================================
-# Testing Commands
-# =============================================================================
-
-# Run all tests
-test:
-	@echo "Running tests..."
-	python -m pytest tests/ -v
-
-# Run tests with coverage
-test-coverage:
-	@echo "Running tests with coverage..."
-	python -m pytest tests/ --cov=app --cov-report=html
-
-# =============================================================================
-# Deployment Commands
-# =============================================================================
-
-# Deploy to development environment
-deploy-dev:
-	@echo "Deploying to development environment..."
-	./scripts/deploy.sh development
-
-# Deploy to staging environment
-deploy-staging:
-	@echo "Deploying to staging environment..."
-	./scripts/deploy.sh staging
-
-# Deploy to production environment
-deploy-prod:
-	@echo "Deploying to production environment..."
-	./scripts/deploy.sh production
+## Complete environment reset
+reset: clean build up
+	@echo "🔄 Environment reset complete"
 
 # =============================================================================
 # Utility Commands
 # =============================================================================
 
-# Clean up temporary and cache files
-clean:
-	@echo "Cleaning up..."
-	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type f -name "*.pyc" -delete
-	@find . -type f -name "*.pyo" -delete
-	@find . -name "*.backup" -delete
-	@rm -rf .pytest_cache/
-	@rm -rf htmlcov/
-	@rm -rf .coverage
-	@echo "Cleaned up cache files and temporary files"
-
-# Show application status
+## Check application status
 status:
-	@echo "Application Status:"
-	@echo "==================="
-	@if docker-compose ps | grep -q "personal-finance-dashboard-app"; then \
-		echo "Docker Status: Running"; \
-		docker-compose ps; \
+	@echo "📊 Application Status"
+	@echo "===================="
+	@docker-compose ps
+	@echo ""
+	@echo "🔍 Health Checks:"
+	@curl -s http://localhost:8080/health 2>/dev/null || echo "❌ Application not responding"
+	@curl -s http://localhost:11434/api/version 2>/dev/null || echo "❌ Ollama not responding"
+
+## Start Ollama service (host system)
+ollama-start:
+	@echo "🤖 Starting Ollama service..."
+	@if pgrep -f "ollama serve" > /dev/null; then \
+		echo "✅ Ollama is already running"; \
 	else \
-		echo "Docker Status: Not running"; \
+		echo "Starting Ollama in background..."; \
+		OLLAMA_HOST=0.0.0.0:11434 nohup ollama serve > /tmp/ollama.log 2>&1 & \
+		sleep 3; \
+		if pgrep -f "ollama serve" > /dev/null; then \
+			echo "✅ Ollama started successfully"; \
+		else \
+			echo "❌ Failed to start Ollama"; \
+			cat /tmp/ollama.log; \
+		fi \
 	fi
 
-# Setup development environment
-setup-dev:
-	@echo "Setting up development environment..."
-	@if [ ! -f ".env" ]; then \
-		cp env.example .env; \
-		echo "Created .env file from template"; \
+## Stop Ollama service
+ollama-stop:
+	@echo "🛑 Stopping Ollama service..."
+	@if pgrep -f "ollama serve" > /dev/null; then \
+		pkill -f "ollama serve"; \
+		echo "✅ Ollama stopped"; \
+	else \
+		echo "Ollama is not running"; \
 	fi
-	make install
-	make db-upgrade
-	@echo "Development environment setup complete!"
 
-# Help command
+## Pull required LLM models
+models:
+	@echo "📥 Pulling required LLM models..."
+	@if ! pgrep -f "ollama serve" > /dev/null; then \
+		echo "❌ Ollama is not running. Please start it first with: make ollama-start"; \
+		exit 1; \
+	fi
+	ollama pull llama3.2:3b
+	@echo "✅ Models ready"
+
+## Database shell access
+db-shell:
+	@echo "🗄️  Opening database shell..."
+	docker-compose exec db psql -U financeuser -d personal_finance
+
+## Full setup for new development environment
+setup: ollama-start models build up
+	@echo "🎉 Development environment setup complete!"
+	@echo ""
+	@echo "🔗 Quick Links:"
+	@echo "   - Application: http://localhost:8080"
+	@echo "   - Database: localhost:5433"
+	@echo "   - Ollama API: http://localhost:11434"
+	@echo ""
+	@echo "📝 Next steps:"
+	@echo "   - Upload a PDF statement to test LLM processing"
+	@echo "   - Check logs with: make logs"
+	@echo "   - Access shell with: make shell"
+
+## Show this help message
 help:
 	@echo "Personal Finance Dashboard - Available Commands"
 	@echo "=============================================="
 	@echo ""
-	@echo "Local Development:"
-	@echo "  make run               - Start the Flask server locally"
-	@echo "  make debug             - Start the server in debug mode"
-	@echo "  make stop              - Stop the running server"
-	@echo "  make install           - Install required dependencies"
-	@echo "  make setup-dev         - Setup development environment"
+	@echo "🚀 Quick Start:"
+	@echo "  make setup             - Complete development setup"
+	@echo "  make up                - Start the application"
+	@echo "  make down              - Stop the application"
 	@echo ""
-	@echo "Docker Commands:"
-	@echo "  make docker-build      - Build Docker image"
-	@echo "  make docker-up         - Start with Docker Compose (background)"
-	@echo "  make docker-up-logs    - Start with Docker Compose (with logs)"
-	@echo "  make docker-down       - Stop Docker containers (keep data)"
-	@echo "  make docker-stop       - Stop Docker containers (keep data)"
-	@echo "  make docker-down-clean - Stop containers and remove volumes"
-	@echo "  make docker-clean-all  - Stop containers and remove ALL data"
-	@echo "  make docker-logs       - View application logs"
-	@echo "  make docker-shell      - Open shell in app container"
-	@echo "  make docker-db-shell   - Open PostgreSQL shell"
-	@echo "  make docker-clean      - Clean up Docker resources"
-	@echo "  make docker-restart    - Restart Docker containers"
+	@echo "🔧 Development:"
+	@echo "  make build             - Build Docker containers"
+	@echo "  make logs              - View application logs"
+	@echo "  make shell             - Access application shell"
+	@echo "  make test              - Run test suite"
 	@echo ""
-	@echo "Database Commands:"
-	@echo "  make db-init           - Initialize database migrations"
-	@echo "  make db-migrate        - Create new migration (use MESSAGE='description')"
-	@echo "  make db-upgrade        - Apply database migrations"
-	@echo "  make db-reset          - Reset database (development only)"
+	@echo "🤖 LLM Management:"
+	@echo "  make ollama-start      - Start Ollama service"
+	@echo "  make ollama-stop       - Stop Ollama service"
+	@echo "  make models            - Pull required LLM models"
 	@echo ""
-	@echo "Testing:"
-	@echo "  make test              - Run all tests"
-	@echo "  make test-coverage     - Run tests with coverage report"
+	@echo "🗄️  Database:"
+	@echo "  make db-shell          - Access database shell"
 	@echo ""
-	@echo "Deployment:"
-	@echo "  make deploy-dev        - Deploy to development"
-	@echo "  make deploy-staging    - Deploy to staging"
-	@echo "  make deploy-prod       - Deploy to production"
-	@echo ""
-	@echo "Utilities:"
-	@echo "  make clean             - Clean up cache and temporary files"
-	@echo "  make status            - Show application status"
-	@echo "  make help              - Show this help message"
-	@echo ""
-	@echo "Quick Start:"
-	@echo "  make docker-up-logs    - Start everything with logs"
-	@echo "  make docker-down       - Stop everything"
+	@echo "🧹 Maintenance:"
+	@echo "  make clean             - Clean containers and volumes"
+	@echo "  make reset             - Complete environment reset"
+	@echo "  make status            - Check application status"

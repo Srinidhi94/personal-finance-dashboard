@@ -99,6 +99,64 @@
             font-weight: 700;
             margin-bottom: 0.5rem;
         }
+        
+        /* Upload Modal Styles */
+        .upload-area {
+            border-color: #dee2e6 !important;
+            background-color: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #0d6efd !important;
+            background-color: #e7f3ff;
+        }
+        .upload-area.dragover {
+            border-color: #0d6efd !important;
+            background-color: #e7f3ff;
+            transform: scale(1.02);
+        }
+        
+        .progress-stages {
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .stage-indicator {
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            opacity: 0.4;
+        }
+        
+        .stage-indicator.active {
+            opacity: 1;
+            background-color: #e7f3ff;
+            color: #0d6efd;
+        }
+        
+        .stage-indicator.completed {
+            opacity: 1;
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+        
+        .stage-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+        
+        .stage-percentage {
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+        
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
     </style>
     {% block extra_styles %}{% endblock %}
 </head>
@@ -143,6 +201,144 @@
             }).format(amount);
         }
     </script>
+    
+    <!-- Upload Statement Modal -->
+    {% if config.ENABLE_FILE_UPLOAD %}
+    <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadModalLabel">
+                        <i class="bi bi-cloud-upload me-2"></i>Upload Bank Statement
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="bankSelect" class="form-label">Bank</label>
+                                <select class="form-select" id="bankSelect" name="bank" required>
+                                    <option value="">Select Bank</option>
+                                    <option value="Federal Bank">Federal Bank</option>
+                                    <option value="HDFC Bank">HDFC Bank</option>
+                                    <option value="ICICI Bank">ICICI Bank</option>
+                                    <option value="SBI">State Bank of India</option>
+                                    <option value="Axis Bank">Axis Bank</option>
+                                    <option value="Kotak Bank">Kotak Bank</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="accountSelect" class="form-label">Account Type</label>
+                                <select class="form-select" id="accountSelect" name="account_type" required>
+                                    <option value="">Select Account Type</option>
+                                    <option value="Savings Account">Savings Account</option>
+                                    <option value="Credit Card">Credit Card</option>
+                                    <option value="Current Account">Current Account</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="fileInput" class="form-label">Statement File</label>
+                            <div class="upload-area border-2 border-dashed rounded p-4 text-center" id="uploadArea">
+                                <i class="bi bi-cloud-upload fs-1 text-muted mb-2"></i>
+                                <p class="mb-2">Drag and drop your file here, or click to browse</p>
+                                <p class="text-muted small">Supported formats: PDF, CSV, XLSX (Max 32MB)</p>
+                                <input type="file" class="form-control d-none" id="fileInput" name="file" 
+                                       accept=".pdf,.csv,.xlsx,.xls" required>
+                                <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                                    Choose File
+                                </button>
+                            </div>
+                            <div id="fileInfo" class="mt-2 d-none">
+                                <div class="alert alert-info d-flex align-items-center">
+                                    <i class="bi bi-file-earmark me-2"></i>
+                                    <span id="fileName"></span>
+                                    <button type="button" class="btn-close ms-auto" onclick="clearFile()"></button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Section (Hidden initially) -->
+                        <div id="uploadProgress" class="d-none">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-medium">Processing Status</span>
+                                    <span id="progressPercentage">0%</span>
+                                </div>
+                                <div class="progress mb-2" style="height: 8px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         id="progressBar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <small class="text-muted" id="progressStatus">Ready to upload...</small>
+                                    <small class="text-muted" id="traceId"></small>
+                                </div>
+                            </div>
+                            
+                            <!-- Multi-stage Progress Indicator -->
+                            <div class="progress-stages">
+                                <div class="row text-center">
+                                    <div class="col-3">
+                                        <div class="stage-indicator" id="stage1">
+                                            <i class="bi bi-cloud-upload fs-4"></i>
+                                            <div class="stage-label">Upload</div>
+                                            <div class="stage-percentage">0-20%</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="stage-indicator" id="stage2">
+                                            <i class="bi bi-file-text fs-4"></i>
+                                            <div class="stage-label">Analysis</div>
+                                            <div class="stage-percentage">20-70%</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="stage-indicator" id="stage3">
+                                            <i class="bi bi-cpu fs-4"></i>
+                                            <div class="stage-label">Extraction</div>
+                                            <div class="stage-percentage">70-90%</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="stage-indicator" id="stage4">
+                                            <i class="bi bi-check-circle fs-4"></i>
+                                            <div class="stage-label">Complete</div>
+                                            <div class="stage-percentage">90-100%</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error Display -->
+                        <div id="uploadError" class="alert alert-danger d-none">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <span id="errorMessage"></span>
+                        </div>
+                        
+                        <!-- Success Display -->
+                        <div id="uploadSuccess" class="alert alert-success d-none">
+                            <i class="bi bi-check-circle me-2"></i>
+                            <span id="successMessage"></span>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="cancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="uploadBtn">
+                        <i class="bi bi-cloud-upload me-2"></i>Upload & Process
+                    </button>
+                    <button type="button" class="btn btn-success d-none" id="reviewBtn">
+                        <i class="bi bi-eye me-2"></i>Review Transactions
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

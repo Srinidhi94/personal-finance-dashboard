@@ -9,7 +9,8 @@ from .models import (
     User,
     ChatSession,
     AuditLog,
-    LLMProcessingLog
+    LLMProcessingLog,
+    TransactionSource
 )
 
 # Make all models available when importing from models package
@@ -21,5 +22,6 @@ __all__ = [
     'User',
     'ChatSession',
     'AuditLog',
-    'LLMProcessingLog'
+    'LLMProcessingLog',
+    'TransactionSource'
 ] 

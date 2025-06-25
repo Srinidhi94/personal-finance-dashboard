@@ -1,6 +1,13 @@
+# Personal Finance Dashboard - Docker Compose Configuration
+# Uses host system's Ollama installation (installed via Homebrew)
+
+version: '3.8'
+
 services:
+  # PostgreSQL Database Service
   db:
     image: postgres:15
+    container_name: finance-db
     environment:
       POSTGRES_USER: financeuser
       POSTGRES_PASSWORD: financepass
@@ -14,26 +21,75 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - finance-network
 
+  # Flask Application Service
   app:
     build: .
+    container_name: finance-app
     ports:
       - "8080:5000"
     environment:
-      - FLASK_ENV=production
+      # Flask configuration
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      
+      # Database configuration
       - DATABASE_URL=postgresql://financeuser:financepass@db:5432/personal_finance
-      - SECRET_KEY=your-secret-key-for-production-change-this
-      - POSTGRES_HOST=db
-      - POSTGRES_USER=financeuser
-      - POSTGRES_PASSWORD=financepass
-      - POSTGRES_DB=personal_finance
+      
+      # Security configuration
       - DB_ENCRYPTION_KEY=zmJgYyCDjrG1UFNyxqGx5ar0xzIJFTdT20FcQ12M-qE=
+      
+      # Feature flags
+      - ENABLE_FILE_UPLOAD=true
+      - ENABLE_LLM_PARSING=true
+      
+      # Ollama/LLM configuration - Connect to host system Ollama
+      - OLLAMA_BASE_URL=http://192.168.0.118:11434
+      - LLM_MODEL=llama3.2:1b
+      
+      # File upload configuration
+      - UPLOAD_FOLDER=/app/uploads
+      - MAX_CONTENT_LENGTH=33554432
+      - MAX_PDF_SIZE=33554432
+      - MAX_CSV_SIZE=10485760
+      - MAX_EXCEL_SIZE=26214400
+      
+      # Monitoring and logging
+      - LOG_LEVEL=INFO
+      - ENABLE_METRICS=true
+      
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ./uploads:/app/uploads
+      - ./instance:/app/instance
+    networks:
+      - finance-network
+    # Enable access to host system for Ollama connection
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    restart: unless-stopped
     command: ["bash", "/app/entrypoint.sh"]
 
 volumes:
-  postgres_data: 
+  postgres_data:
+    driver: local
+  upload_data:
+    driver: local
+  temp_data:
+    driver: local
+
+networks:
+  finance-network:
+    driver: bridge

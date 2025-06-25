@@ -6,16 +6,18 @@ This module provides a secure wrapper around the Transaction model that handles:
 2. Audit logging for all data access operations
 3. Backward compatibility with unencrypted data during migration
 4. User-specific data access controls
+5. File upload tracking and processing metadata
 """
 
 import os
 import logging
+import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from flask import request
 
 # Import the main models and utilities
-from models import db, Transaction, AuditLog
+from models import db, Transaction, AuditLog, TransactionSource
 from utils.encryption import TransactionEncryption, EncryptionError
 
 # Configure logging
@@ -37,9 +39,10 @@ class SecureTransaction:
         self.encryption = TransactionEncryption()
         self.encryption_key_id = "default_key_v1"
         
-    def _log_audit_action(self, action: str, user_id: Optional[int] = None, 
+    def _log_audit_action(self, action: str, user_id: Optional[str] = None, 
                          transaction_id: Optional[int] = None, details: Optional[Dict[str, Any]] = None,
-                         success: bool = True, error_message: Optional[str] = None):
+                         success: bool = True, error_message: Optional[str] = None,
+                         trace_id: Optional[str] = None):
         """Log audit action for transaction operations"""
         try:
             # Get request context information if available
@@ -56,13 +59,14 @@ class SecureTransaction:
             AuditLog.log_action(
                 action=action,
                 user_id=user_id,
-                details=details,
+                metadata=details,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                resource_type='transaction',
-                resource_id=str(transaction_id) if transaction_id else None,
+                entity_type='transaction',
+                entity_id=str(transaction_id) if transaction_id else None,
                 success=success,
-                error_message=error_message
+                error_message=error_message,
+                trace_id=trace_id
             )
             db.session.commit()
         except Exception as e:
@@ -118,23 +122,33 @@ class SecureTransaction:
             # Return original data if decryption fails
             return transaction.to_dict()
     
-    def store_transaction_encrypted(self, transaction_data: Dict[str, Any], user_id: Optional[int] = None) -> int:
+    def store_transaction_encrypted(self, transaction_data: Dict[str, Any], user_id: Optional[str] = None,
+                                  trace_id: Optional[str] = None, source: TransactionSource = TransactionSource.MANUAL_ENTRY,
+                                  processing_metadata: Optional[Dict[str, Any]] = None) -> int:
         """
         Store a new transaction with encrypted sensitive fields
         
         Args:
             transaction_data: Dictionary containing transaction information
             user_id: ID of the user creating the transaction
+            trace_id: Trace ID for tracking file upload operations
+            source: Source of the transaction (manual_entry or file_upload)
+            processing_metadata: Processing metadata for file uploads
             
         Returns:
             int: ID of the created transaction
         """
         try:
+            # Generate trace_id if not provided
+            if not trace_id:
+                trace_id = str(uuid.uuid4())
+            
             # Log the attempt
             self._log_audit_action(
                 action='transaction_create_attempt',
                 user_id=user_id,
-                details={'fields': list(transaction_data.keys())}
+                details={'fields': list(transaction_data.keys()), 'source': source.value},
+                trace_id=trace_id
             )
             
             # Encrypt sensitive data
@@ -158,8 +172,16 @@ class SecureTransaction:
                 encrypted_description=encrypted_data.get('encrypted_description'),
                 encrypted_amount=encrypted_data.get('encrypted_amount'),
                 encryption_key_id=encrypted_data.get('encryption_key_id'),
-                is_encrypted=encrypted_data.get('is_encrypted', False)
+                is_encrypted=encrypted_data.get('is_encrypted', False),
+                # New fields
+                trace_id=trace_id,
+                source=source,
+                processing_metadata=None
             )
+            
+            # Set processing metadata if provided
+            if processing_metadata:
+                transaction.set_processing_metadata(processing_metadata)
             
             db.session.add(transaction)
             db.session.commit()
@@ -172,11 +194,14 @@ class SecureTransaction:
                 details={
                     'category': transaction.category,
                     'amount': float(transaction.amount),
-                    'is_encrypted': transaction.is_encrypted
-                }
+                    'is_encrypted': transaction.is_encrypted,
+                    'source': transaction.source.value,
+                    'has_processing_metadata': bool(processing_metadata)
+                },
+                trace_id=trace_id
             )
             
-            logger.info(f"Transaction {transaction.id} created and encrypted successfully")
+            logger.info(f"Transaction {transaction.id} created and encrypted successfully with trace_id {trace_id}")
             return transaction.id
             
         except Exception as e:
@@ -189,37 +214,37 @@ class SecureTransaction:
                 action='transaction_create_failed',
                 user_id=user_id,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
+                trace_id=trace_id
             )
             
             raise SecureTransactionError(error_msg)
     
-    def get_transactions_decrypted(self, user_id: Optional[int] = None, 
+    def get_transactions_decrypted(self, user_id: Optional[str] = None, 
                                  filters: Optional[Dict[str, Any]] = None,
                                  limit: Optional[int] = None,
-                                 offset: Optional[int] = None) -> List[Dict[str, Any]]:
+                                 offset: Optional[int] = None,
+                                 trace_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        Retrieve transactions with decrypted sensitive fields
+        Get transactions with decrypted sensitive fields
         
         Args:
-            user_id: ID of the user requesting transactions
-            filters: Dictionary of filters to apply
+            user_id: ID of the user requesting the data
+            filters: Optional filters to apply (e.g., {'category': 'Food', 'source': 'file_upload'})
             limit: Maximum number of transactions to return
             offset: Number of transactions to skip
+            trace_id: Optional trace ID for audit logging
             
         Returns:
-            List of decrypted transaction dictionaries
+            List of transaction dictionaries with decrypted data
         """
         try:
             # Log the access attempt
             self._log_audit_action(
                 action='transactions_access_attempt',
                 user_id=user_id,
-                details={
-                    'filters': filters or {},
-                    'limit': limit,
-                    'offset': offset
-                }
+                details={'filters': filters, 'limit': limit, 'offset': offset},
+                trace_id=trace_id
             )
             
             # Build query
@@ -227,19 +252,24 @@ class SecureTransaction:
             
             # Apply filters
             if filters:
-                if 'account_id' in filters:
-                    query = query.filter(Transaction.account_id == filters['account_id'])
-                if 'category' in filters:
-                    query = query.filter(Transaction.category == filters['category'])
-                if 'is_debit' in filters:
-                    query = query.filter(Transaction.is_debit == filters['is_debit'])
-                if 'date_from' in filters:
-                    query = query.filter(Transaction.date >= filters['date_from'])
-                if 'date_to' in filters:
-                    query = query.filter(Transaction.date <= filters['date_to'])
-            
-            # Apply ordering
-            query = query.order_by(Transaction.date.desc(), Transaction.id.desc())
+                for key, value in filters.items():
+                    if key == 'category':
+                        query = query.filter(Transaction.category == value)
+                    elif key == 'source':
+                        if isinstance(value, str):
+                            query = query.filter(Transaction.source == TransactionSource(value))
+                        else:
+                            query = query.filter(Transaction.source == value)
+                    elif key == 'trace_id':
+                        query = query.filter(Transaction.trace_id == value)
+                    elif key == 'account_id':
+                        query = query.filter(Transaction.account_id == value)
+                    elif key == 'is_debit':
+                        query = query.filter(Transaction.is_debit == value)
+                    elif key == 'date_from':
+                        query = query.filter(Transaction.date >= value)
+                    elif key == 'date_to':
+                        query = query.filter(Transaction.date <= value)
             
             # Apply pagination
             if offset:
@@ -247,34 +277,29 @@ class SecureTransaction:
             if limit:
                 query = query.limit(limit)
             
-            # Execute query
+            # Order by date descending
+            query = query.order_by(Transaction.date.desc())
+            
             transactions = query.all()
             
-            # Decrypt and convert to dictionaries
+            # Decrypt and return transaction data
             decrypted_transactions = []
             for transaction in transactions:
-                try:
-                    decrypted_data = self._decrypt_transaction_data(transaction)
-                    decrypted_transactions.append(decrypted_data)
-                except Exception as e:
-                    logger.error(f"Failed to decrypt transaction {transaction.id}: {e}")
-                    # Include original data if decryption fails
-                    decrypted_transactions.append(transaction.to_dict())
+                decrypted_data = self._decrypt_transaction_data(transaction)
+                decrypted_transactions.append(decrypted_data)
             
             # Log successful access
             self._log_audit_action(
                 action='transactions_accessed',
                 user_id=user_id,
-                details={
-                    'count': len(decrypted_transactions),
-                    'encrypted_count': sum(1 for t in transactions if t.is_encrypted)
-                }
+                details={'count': len(decrypted_transactions), 'filters': filters},
+                trace_id=trace_id
             )
             
             return decrypted_transactions
             
         except Exception as e:
-            error_msg = f"Failed to retrieve transactions: {e}"
+            error_msg = f"Failed to get decrypted transactions: {e}"
             logger.error(error_msg)
             
             # Log the failure
@@ -282,94 +307,88 @@ class SecureTransaction:
                 action='transactions_access_failed',
                 user_id=user_id,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
+                trace_id=trace_id
             )
             
             raise SecureTransactionError(error_msg)
-    
-    def update_transaction_encrypted(self, transaction_id: int, updates: Dict[str, Any], 
-                                   user_id: Optional[int] = None) -> bool:
+
+    def get_transactions_by_trace_id(self, trace_id: str, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        Update a transaction with encrypted sensitive fields
+        Get all transactions associated with a specific trace ID
+        
+        Args:
+            trace_id: Trace ID to search for
+            user_id: ID of the user requesting the data
+            
+        Returns:
+            List of transaction dictionaries with decrypted data
+        """
+        return self.get_transactions_decrypted(
+            user_id=user_id,
+            filters={'trace_id': trace_id},
+            trace_id=trace_id
+        )
+
+    def update_processing_metadata(self, transaction_id: int, metadata: Dict[str, Any], 
+                                 user_id: Optional[str] = None, trace_id: Optional[str] = None) -> bool:
+        """
+        Update processing metadata for a transaction
         
         Args:
             transaction_id: ID of the transaction to update
-            updates: Dictionary of fields to update
+            metadata: Processing metadata to set
             user_id: ID of the user making the update
+            trace_id: Trace ID for audit logging
             
         Returns:
-            bool: True if update was successful
+            bool: True if successful, False otherwise
         """
         try:
-            # Log the update attempt
-            self._log_audit_action(
-                action='transaction_update_attempt',
-                user_id=user_id,
-                transaction_id=transaction_id,
-                details={'fields_to_update': list(updates.keys())}
-            )
-            
             transaction = Transaction.query.get(transaction_id)
             if not transaction:
                 raise SecureTransactionError(f"Transaction {transaction_id} not found")
             
-            # Handle sensitive fields that need encryption
-            sensitive_updates = {}
-            if 'description' in updates:
-                sensitive_updates['description'] = updates['description']
-            if 'amount' in updates:
-                sensitive_updates['amount'] = str(updates['amount'])
+            # Log the update attempt
+            self._log_audit_action(
+                action='transaction_metadata_update_attempt',
+                user_id=user_id,
+                transaction_id=transaction_id,
+                details={'metadata_keys': list(metadata.keys())},
+                trace_id=trace_id or transaction.trace_id
+            )
             
-            # Encrypt sensitive fields if any
-            if sensitive_updates:
-                encrypted_fields = self.encryption.encrypt_sensitive_fields(sensitive_updates)
-                
-                # Update encrypted fields
-                if 'description' in sensitive_updates:
-                    transaction.encrypted_description = encrypted_fields.get('description')
-                    transaction.description = updates['description']
-                if 'amount' in sensitive_updates:
-                    transaction.encrypted_amount = encrypted_fields.get('amount')
-                    transaction.amount = updates['amount']
-                
-                transaction.encryption_key_id = self.encryption_key_id
-                transaction.is_encrypted = True
-            
-            # Update non-sensitive fields
-            for field, value in updates.items():
-                if field not in ['description', 'amount'] and hasattr(transaction, field):
-                    setattr(transaction, field, value)
-            
-            # Update timestamp
+            # Update processing metadata
+            transaction.set_processing_metadata(metadata)
             transaction.updated_at = datetime.utcnow()
             
             db.session.commit()
             
             # Log successful update
             self._log_audit_action(
-                action='transaction_updated',
+                action='transaction_metadata_updated',
                 user_id=user_id,
                 transaction_id=transaction_id,
-                details={
-                    'updated_fields': list(updates.keys()),
-                    'is_encrypted': transaction.is_encrypted
-                }
+                details={'metadata': metadata},
+                trace_id=trace_id or transaction.trace_id
             )
             
+            logger.info(f"Processing metadata updated for transaction {transaction_id}")
             return True
             
         except Exception as e:
             db.session.rollback()
-            error_msg = f"Failed to update transaction {transaction_id}: {e}"
+            error_msg = f"Failed to update processing metadata: {e}"
             logger.error(error_msg)
             
             # Log the failure
             self._log_audit_action(
-                action='transaction_update_failed',
+                action='transaction_metadata_update_failed',
                 user_id=user_id,
                 transaction_id=transaction_id,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
+                trace_id=trace_id
             )
             
-            raise SecureTransactionError(error_msg)
+            return False

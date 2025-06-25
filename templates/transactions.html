@@ -449,7 +449,7 @@
                     <select class="form-select filter-select" id="bank" name="bank">
                         <option value="">All Accounts</option>
                         {% for bank in banks %}
-                        <option value="{{ bank }}" {% if filters.bank == bank %}selected{% endif %}>{{ bank }}</option>
+                        <option value="{{ bank }}">{{ bank }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -1240,12 +1240,14 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
             bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
             window.location.href = data.redirect_url;
         } else {
-            alert('Error: ' + (data.error || 'Upload failed'));
+            // Show user-friendly error message
+            const errorMessage = data.user_message || data.error || 'Upload failed';
+            showErrorAlert(errorMessage, data.error_type || 'error');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Upload failed: ' + error.message);
+        showErrorAlert('Network error occurred. Please check your connection and try again.', 'network_error');
     })
     .finally(() => {
         submitBtn.innerHTML = originalText;
@@ -1522,5 +1524,43 @@ document.addEventListener('click', function(e) {
         }
     });
     });
+
+// Function to show user-friendly error alerts
+function showErrorAlert(message, errorType) {
+    // Create a more user-friendly alert with Bootstrap styling
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+    
+    // Add appropriate icon based on error type
+    let icon = 'bi-exclamation-triangle';
+    if (errorType === 'llm_service_unavailable' || errorType === 'llm_connection_error') {
+        icon = 'bi-wifi-off';
+    } else if (errorType === 'invalid_pdf_content' || errorType === 'pdf_extraction_failed') {
+        icon = 'bi-file-earmark-x';
+    } else if (errorType === 'no_transactions_found') {
+        icon = 'bi-search';
+    }
+    
+    alertDiv.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="bi ${icon} me-2"></i>
+            <div>
+                <strong>Upload Failed</strong><br>
+                <small>${message}</small>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 10000);
+}
 </script>
 {% endblock %}
